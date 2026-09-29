@@ -13,6 +13,14 @@ const state = {
   activeTypeFilter: "all",    // 'all', 'FVG', 'OB', 'active'
   filterByAsset: true,        // When true, displays alerts specifically for currentDisplay
 
+  // Strategy & Structure Terminal State
+  strategyActive: false,
+  signals: [],
+  structureData: null,
+  isAnalyzing: false,
+  isEvaluating: false,
+  pollingTimer: null,
+
   // Multi-Asset Live SMC Setups
   alerts: [
     // --- BTC/USDT Setups ---
@@ -327,8 +335,14 @@ document.addEventListener("DOMContentLoaded", () => {
   initAlertFilters();
   initActionButtons();
   initScopeToggle();
+  initTerminalExtensions();
   renderAlerts();
+
+  // Initial On-Demand Structure Analysis & Live Signals Fetch
+  fetchStructureAnalysis(state.currentDisplay, state.currentInterval);
+  fetchStrategySignals();
 });
+
 
 /**
  * Initialize or Reload TradingView Advanced Chart Widget
@@ -417,6 +431,12 @@ function initMarketSelectors() {
       // Re-render alerts panel specifically for the newly selected asset
       renderAlerts();
 
+      // Automatically refresh Market Structure & Liquidity for new asset
+      fetchStructureAnalysis(state.currentDisplay, state.currentInterval);
+      if (state.strategyActive) {
+        evaluateLiveStrategy(true);
+      }
+
       showToast("Market Switched", `Chart & Live SMC feed switched to ${display}`);
     });
   });
@@ -437,6 +457,13 @@ function initTimeframeSelectors() {
       state.currentInterval = interval;
 
       initTradingViewWidget(state.currentSymbol, state.currentInterval);
+
+      // Refresh structure analysis on new timeframe
+      fetchStructureAnalysis(state.currentDisplay, state.currentInterval);
+      if (state.strategyActive) {
+        evaluateLiveStrategy(true);
+      }
+
       showToast("Timeframe Changed", `Switched to ${btn.textContent.trim()} candle interval`);
     });
   });
@@ -743,3 +770,609 @@ function initClock() {
   update();
   setInterval(update, 1000);
 }
+
+/* ==========================================================================
+   Terminal Extensions: Strategy Deployment & Market Structure Liquidity
+   ========================================================================== */
+
+/**
+ * Normalize TradingView interval to backend timeframe string
+ */
+function getNormalizedTf(interval) {
+  if (!interval) return "15m";
+  const s = String(interval).toUpperCase();
+  if (s === "1") return "1m";
+  if (s === "5") return "5m";
+  if (s === "15") return "15m";
+  if (s === "60") return "1h";
+  if (s === "240") return "4h";
+  if (s === "D" || s === "1D") return "1d";
+  return `${interval}m`;
+}
+
+/**
+ * Initialize Strategy Deployment & On-Demand Structure Event Handlers
+ */
+function initTerminalExtensions() {
+  // Quick Analyze Button (next to chart)
+  const quickAnalyzeBtn = document.getElementById("quickAnalyzeBtn");
+  if (quickAnalyzeBtn) {
+    quickAnalyzeBtn.addEventListener("click", () => {
+      fetchStructureAnalysis(state.currentDisplay, state.currentInterval, true);
+    });
+  }
+
+  // Refresh Structure Button (in Structure pane)
+  const refreshStructureBtn = document.getElementById("refreshStructureBtn");
+  if (refreshStructureBtn) {
+    refreshStructureBtn.addEventListener("click", () => {
+      fetchStructureAnalysis(state.currentDisplay, state.currentInterval, false);
+    });
+  }
+
+  // Activate Strategy Toggle Button
+  const strategyToggleBtn = document.getElementById("strategyToggleBtn");
+  if (strategyToggleBtn) {
+    strategyToggleBtn.addEventListener("click", () => {
+      toggleStrategy();
+    });
+  }
+
+  // Evaluate Live Signal Button
+  const evaluateLiveBtn = document.getElementById("evaluateLiveSignalBtn");
+  if (evaluateLiveBtn) {
+    evaluateLiveBtn.addEventListener("click", () => {
+      evaluateLiveStrategy(false);
+    });
+  }
+}
+
+/**
+ * Fetch On-Demand Market Structure & Liquidity Analysis (/api/analyze)
+ */
+async function fetchStructureAnalysis(symbol, interval, switchTab = false) {
+  const sym = symbol || state.currentDisplay;
+  const tf = getNormalizedTf(interval || state.currentInterval);
+
+  const analyzeBtn = document.getElementById("quickAnalyzeBtn");
+  const refreshBtn = document.getElementById("refreshStructureBtn");
+
+  try {
+    if (analyzeBtn) {
+      analyzeBtn.disabled = true;
+      analyzeBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Analyzing...`;
+    }
+    if (refreshBtn) {
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>...`;
+    }
+
+    const res = await fetch(`/api/analyze?symbol=${encodeURIComponent(sym)}&timeframe=${tf}`);
+    if (!res.ok) {
+      throw new Error(`API returned status ${res.status}`);
+    }
+    const data = await res.json();
+    state.structureData = data;
+
+    renderStructurePanel(data);
+
+    if (switchTab) {
+      const tabEl = document.querySelector('#terminalTabs button[data-bs-target="#pane-structure"]');
+      if (tabEl) {
+        const tab = bootstrap.Tab.getOrCreateInstance(tabEl);
+        tab.show();
+      }
+      showToast("Structure Analyzed", `${data.symbol} is ${data.directional_bias} (${data.confidence}% confidence)`);
+    }
+
+  } catch (err) {
+    console.error("Analysis fetch error:", err);
+    showToast("Analysis Error", `Could not analyze structure for ${sym}: ${err.message}`);
+  } finally {
+    if (analyzeBtn) {
+      analyzeBtn.disabled = false;
+      analyzeBtn.innerHTML = `<i class="bi bi-cpu-fill"></i><span class="fw-semibold">Quick Analyze</span>`;
+    }
+    if (refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.innerHTML = `<i class="bi bi-arrow-repeat me-1"></i>Re-Analyze`;
+    }
+  }
+}
+
+/**
+ * Update Floating Chart Metrics Sub-Strip with Structure Data
+ */
+function updateChartMetricsStrip(data) {
+  const biasBadge = document.getElementById("stripBiasBadge");
+  const confEl = document.getElementById("stripConfidence");
+  const phaseEl = document.getElementById("stripPhase");
+  const bslEl = document.getElementById("stripNearestBsl");
+  const sslEl = document.getElementById("stripNearestSsl");
+
+  if (biasBadge) {
+    biasBadge.textContent = data.directional_bias;
+    biasBadge.className = `badge ${
+      data.directional_bias === "BULLISH" ? "badge-bullish" :
+      data.directional_bias === "BEARISH" ? "badge-bearish" : "badge-ranging"
+    }`;
+  }
+  if (confEl) confEl.textContent = `${data.confidence}%`;
+  if (phaseEl) phaseEl.textContent = data.structure_phase;
+  if (bslEl) bslEl.textContent = data.nearest_bsl ? `$${data.nearest_bsl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "---";
+  if (sslEl) sslEl.textContent = data.nearest_ssl ? `$${data.nearest_ssl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "---";
+}
+
+/**
+ * Render Structure & Liquidity Panel Content (HH, HL, LH, LL & BSL/SSL)
+ */
+function renderStructurePanel(data) {
+  const container = document.getElementById("structureContentContainer");
+  const activeAssetSpan = document.getElementById("structActiveAsset");
+  const activeTfSpan = document.getElementById("structActiveTf");
+  const structTabBadge = document.getElementById("structureTabBadge");
+
+  if (activeAssetSpan) activeAssetSpan.textContent = data.symbol;
+  if (activeTfSpan) activeTfSpan.textContent = data.timeframe;
+  if (structTabBadge) structTabBadge.textContent = data.directional_bias;
+
+  updateChartMetricsStrip(data);
+
+  if (!container) return;
+
+  const biasBadgeClass = data.directional_bias === "BULLISH" 
+    ? "badge-bullish" 
+    : data.directional_bias === "BEARISH" 
+      ? "badge-bearish" 
+      : "badge-ranging";
+
+  // Build Swings Badges
+  let swingsHtml = "";
+  if (data.swing_points && data.swing_points.length > 0) {
+    const recentSwings = data.swing_points.slice(-8);
+    swingsHtml = recentSwings.map(s => {
+      const cls = s.label.toLowerCase();
+      const timeStr = s.timestamp ? s.timestamp.substring(11, 16) : "";
+      return `
+        <div class="swing-chip ${cls}" title="${s.point_type} formed @ ${timeStr} UTC">
+          <span>${s.label}</span>
+          <span class="text-light">$${s.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+      `;
+    }).join("");
+  } else {
+    swingsHtml = `<span class="text-muted fs-8">Consolidating — waiting for swing pivot expansion</span>`;
+  }
+
+  // Build BSL Levels
+  let bslHtml = "";
+  if (data.bsl_levels && data.bsl_levels.length > 0) {
+    bslHtml = data.bsl_levels.map(l => `
+      <div class="liquidity-row">
+        <div>
+          <span class="badge badge-bsl me-1">BSL</span>
+          <span class="text-light fw-bold">$${l.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="text-end text-muted">
+          <span>${l.description}</span>
+          <span class="text-danger ms-1">(${l.distance_pct > 0 ? "+" : ""}${l.distance_pct}%)</span>
+        </div>
+      </div>
+    `).join("");
+  } else {
+    bslHtml = `<div class="text-muted fs-8 py-1">No overhead swing high pools identified</div>`;
+  }
+
+  // Build SSL Levels
+  let sslHtml = "";
+  if (data.ssl_levels && data.ssl_levels.length > 0) {
+    sslHtml = data.ssl_levels.map(l => `
+      <div class="liquidity-row">
+        <div>
+          <span class="badge badge-ssl me-1">SSL</span>
+          <span class="text-light fw-bold">$${l.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="text-end text-muted">
+          <span>${l.description}</span>
+          <span class="text-success ms-1">(${l.distance_pct > 0 ? "+" : ""}${l.distance_pct}%)</span>
+        </div>
+      </div>
+    `).join("");
+  } else {
+    sslHtml = `<div class="text-muted fs-8 py-1">No lower swing low pools identified</div>`;
+  }
+
+  container.innerHTML = `
+    <!-- Card 1: Directional Bias & Confidence -->
+    <div class="structure-card mb-3">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="fs-8 text-secondary fw-semibold">DIRECTIONAL BIAS</span>
+        <span class="badge ${biasBadgeClass} fs-8 fw-bold">${data.directional_bias}</span>
+      </div>
+      <div class="mb-2">
+        <div class="d-flex justify-content-between fs-8 mb-1">
+          <span class="text-muted">AI Structural Confidence:</span>
+          <span class="text-primary-accent fw-bold font-monospace">${data.confidence}%</span>
+        </div>
+        <div class="progress" style="height: 6px; background-color: rgba(255,255,255,0.06);">
+          <div class="progress-bar ${data.directional_bias === 'BULLISH' ? 'bg-success' : data.directional_bias === 'BEARISH' ? 'bg-danger' : 'bg-warning'}" 
+               role="progressbar" style="width: ${data.confidence}%"></div>
+        </div>
+      </div>
+      <div class="fs-8 text-muted mb-2">
+        <span class="text-secondary fw-semibold">Phase:</span> 
+        <span class="badge bg-dark-subtle border border-secondary-subtle text-light font-monospace">${data.structure_phase}</span>
+      </div>
+      <div class="p-2 bg-dark-surface rounded border border-dark-subtle fs-8 text-muted">
+        <i class="bi bi-info-circle text-info me-1"></i>
+        <span>${data.rationale}</span>
+      </div>
+    </div>
+
+    <!-- Card 2: Market Structure Swings (HH, HL, LH, LL) -->
+    <div class="structure-card mb-3">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="fs-8 text-secondary fw-semibold">MARKET STRUCTURE SWINGS</span>
+        <span class="fs-9 text-muted font-monospace">${data.swing_points ? data.swing_points.length : 0} Identified</span>
+      </div>
+      <div class="d-flex flex-wrap gap-1 mb-2">
+        ${swingsHtml}
+      </div>
+      <div class="d-flex justify-content-between fs-9 text-muted pt-1 border-top border-dark-subtle">
+        <span><span class="text-success fw-bold">HH / HL</span> = Higher Pivots</span>
+        <span><span class="text-danger fw-bold">LH / LL</span> = Lower Pivots</span>
+      </div>
+    </div>
+
+    <!-- Card 3: Liquidity Levels (BSL & SSL Pools) -->
+    <div class="structure-card mb-2">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="fs-8 text-secondary fw-semibold">LIQUIDITY TARGETS (POOLS)</span>
+        <span class="badge bg-dark-subtle text-info border border-info-subtle fs-9 font-monospace">BSL / SSL</span>
+      </div>
+      
+      <!-- Nearest Liquidity High / Low Callouts -->
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <div class="p-2 bg-dark-surface rounded border border-danger-subtle text-center font-monospace">
+            <div class="fs-9 text-danger fw-bold">NEAREST BSL</div>
+            <div class="fs-7 fw-bold text-light">${data.nearest_bsl ? `$${data.nearest_bsl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "---"}</div>
+            <div class="fs-9 text-muted">Buy Side High</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="p-2 bg-dark-surface rounded border border-success-subtle text-center font-monospace">
+            <div class="fs-9 text-success fw-bold">NEAREST SSL</div>
+            <div class="fs-7 fw-bold text-light">${data.nearest_ssl ? `$${data.nearest_ssl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "---"}</div>
+            <div class="fs-9 text-muted">Sell Side Low</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Buy Side Liquidity (BSL) Table -->
+      <div class="mb-2">
+        <div class="fs-9 text-uppercase text-danger fw-bold letter-spacing-1 mb-1">
+          <i class="bi bi-arrow-up-circle me-1"></i>Buy Side Liquidity (BSL / Highs)
+        </div>
+        ${bslHtml}
+      </div>
+
+      <!-- Sell Side Liquidity (SSL) Table -->
+      <div class="mt-3">
+        <div class="fs-9 text-uppercase text-success fw-bold letter-spacing-1 mb-1">
+          <i class="bi bi-arrow-down-circle me-1"></i>Sell Side Liquidity (SSL / Lows)
+        </div>
+        ${sslHtml}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Toggle Strategy Activation State (/api/strategy/toggle)
+ */
+async function toggleStrategy() {
+  const toggleBtn = document.getElementById("strategyToggleBtn");
+  const dot = document.getElementById("strategyBtnDot");
+  const text = document.getElementById("strategyBtnText");
+  const stripState = document.getElementById("stripStrategyState");
+  const engineStatus = document.getElementById("signalsEngineStatus");
+  const pulse = document.getElementById("signalsPulse");
+
+  try {
+    if (toggleBtn) toggleBtn.disabled = true;
+    const res = await fetch("/api/strategy/toggle", { method: "POST" });
+    const data = await res.json();
+    state.strategyActive = data.active;
+    state.signals = data.signals || [];
+
+    if (state.strategyActive) {
+      if (toggleBtn) {
+        toggleBtn.className = "btn btn-sm btn-success text-dark fw-bold d-flex align-items-center gap-2";
+      }
+      if (dot) dot.classList.add("active");
+      if (text) text.textContent = "Strategy Active (Live)";
+      if (stripState) {
+        stripState.textContent = "RUNNING";
+        stripState.className = "badge bg-success font-monospace";
+      }
+      if (engineStatus) {
+        engineStatus.textContent = "RUNNING";
+        engineStatus.className = "badge bg-success-subtle text-success font-monospace";
+      }
+      if (pulse) pulse.style.display = "inline-block";
+
+      showToast("Strategy Deployed", "Live SMC Strategy is now actively evaluating candle order confluence!");
+      
+      // Automatically switch to Signals tab to view live orders
+      const tabEl = document.querySelector('#terminalTabs button[data-bs-target="#pane-signals"]');
+      if (tabEl) {
+        const tab = bootstrap.Tab.getOrCreateInstance(tabEl);
+        tab.show();
+      }
+
+      // Trigger immediate evaluation
+      await evaluateLiveStrategy(false);
+
+      // Start auto-evaluation polling loop every 12 seconds
+      if (!state.pollingTimer) {
+        state.pollingTimer = setInterval(() => {
+          if (state.strategyActive) {
+            evaluateLiveStrategy(true);
+          }
+        }, 12000);
+      }
+    } else {
+      if (toggleBtn) {
+        toggleBtn.className = "btn btn-sm btn-outline-success d-flex align-items-center gap-2";
+      }
+      if (dot) dot.classList.remove("active");
+      if (text) text.textContent = "Activate Strategy";
+      if (stripState) {
+        stripState.textContent = "STANDBY";
+        stripState.className = "badge bg-secondary font-monospace";
+      }
+      if (engineStatus) {
+        engineStatus.textContent = "STANDBY";
+        engineStatus.className = "badge bg-secondary-subtle text-secondary font-monospace";
+      }
+      if (pulse) pulse.style.display = "none";
+
+      if (state.pollingTimer) {
+        clearInterval(state.pollingTimer);
+        state.pollingTimer = null;
+      }
+
+      showToast("Strategy Standby", "Automated execution engine paused");
+    }
+
+    renderSignalsFeed();
+
+  } catch (err) {
+    console.error("Failed to toggle strategy:", err);
+    showToast("Strategy Error", "Could not reach strategy backend API");
+  } finally {
+    if (toggleBtn) toggleBtn.disabled = false;
+  }
+}
+
+/**
+ * Evaluate Live Strategy on Current Asset (/api/strategy/evaluate)
+ */
+async function evaluateLiveStrategy(silent = false) {
+  const evalBtn = document.getElementById("evaluateLiveSignalBtn");
+  const tf = getNormalizedTf(state.currentInterval);
+
+  try {
+    if (evalBtn && !silent) {
+      evalBtn.disabled = true;
+      evalBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Evaluating...`;
+    }
+
+    const res = await fetch(`/api/strategy/evaluate?symbol=${encodeURIComponent(state.currentDisplay)}&timeframe=${tf}`, {
+      method: "POST"
+    });
+    const data = await res.json();
+
+    if (data.status === "signal_generated" && data.signal) {
+      const exists = state.signals.some(s => s.id === data.signal.id);
+      if (!exists) {
+        state.signals.unshift(data.signal);
+        renderSignalsFeed();
+        showToast("New Signal Generated!", `${data.signal.action} ${data.signal.symbol} Entry @ $${data.signal.entry_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      }
+    } else if (!silent) {
+      showToast("Evaluation Complete", data.message || `No new SMC confluence trigger on ${state.currentDisplay} (${tf})`);
+    }
+
+  } catch (err) {
+    console.error("Evaluation error:", err);
+    if (!silent) showToast("API Error", "Failed to evaluate live strategy");
+  } finally {
+    if (evalBtn && !silent) {
+      evalBtn.disabled = false;
+      evalBtn.innerHTML = `<i class="bi bi-play-circle me-1"></i>Evaluate Now`;
+    }
+  }
+}
+
+/**
+ * Fetch Strategy Signals & Status (/api/strategy/signals)
+ */
+async function fetchStrategySignals() {
+  const toggleBtn = document.getElementById("strategyToggleBtn");
+  const dot = document.getElementById("strategyBtnDot");
+  const text = document.getElementById("strategyBtnText");
+  const stripState = document.getElementById("stripStrategyState");
+  const engineStatus = document.getElementById("signalsEngineStatus");
+  const pulse = document.getElementById("signalsPulse");
+
+  try {
+    const res = await fetch("/api/strategy/signals");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    state.strategyActive = data.active;
+    state.signals = data.signals || [];
+
+    if (state.strategyActive) {
+      if (toggleBtn) {
+        toggleBtn.className = "btn btn-sm btn-success text-dark fw-bold d-flex align-items-center gap-2";
+      }
+      if (dot) dot.classList.add("active");
+      if (text) text.textContent = "Strategy Active (Live)";
+      if (stripState) {
+        stripState.textContent = "RUNNING";
+        stripState.className = "badge bg-success font-monospace";
+      }
+      if (engineStatus) {
+        engineStatus.textContent = "RUNNING";
+        engineStatus.className = "badge bg-success-subtle text-success font-monospace";
+      }
+      if (pulse) pulse.style.display = "inline-block";
+
+      if (!state.pollingTimer) {
+        state.pollingTimer = setInterval(() => {
+          if (state.strategyActive) {
+            evaluateLiveStrategy(true);
+          }
+        }, 12000);
+      }
+    } else {
+      if (toggleBtn) {
+        toggleBtn.className = "btn btn-sm btn-outline-success d-flex align-items-center gap-2";
+      }
+      if (dot) dot.classList.remove("active");
+      if (text) text.textContent = "Activate Strategy";
+      if (stripState) {
+        stripState.textContent = "STANDBY";
+        stripState.className = "badge bg-secondary font-monospace";
+      }
+      if (engineStatus) {
+        engineStatus.textContent = "STANDBY";
+        engineStatus.className = "badge bg-secondary-subtle text-secondary font-monospace";
+      }
+      if (pulse) pulse.style.display = "none";
+    }
+
+    renderSignalsFeed();
+
+  } catch (err) {
+    console.error("Failed to fetch strategy signals:", err);
+  }
+}
+
+/**
+ * Render Live Signals in Signals Pane Feed
+ */
+function renderSignalsFeed() {
+  const container = document.getElementById("signalsFeedContainer");
+  const countBadge = document.getElementById("signalsCountBadge");
+  const countFooter = document.getElementById("strategySignalsCount");
+  if (!container) return;
+
+  if (countBadge) countBadge.textContent = state.signals.length;
+  if (countFooter) countFooter.textContent = `${state.signals.length} orders`;
+
+  if (state.signals.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-broadcast fs-1 mb-2 d-block text-secondary opacity-50"></i>
+        <div class="fw-semibold text-light mb-1">No Live Execution Signals</div>
+        <p class="fs-8 text-muted mb-3">Click 'Activate Strategy' to deploy the automated SMC engine or 'Evaluate Now' to calculate immediate confluence.</p>
+        <button class="btn btn-sm btn-outline-primary-accent" onclick="evaluateLiveStrategy(false)">
+          <i class="bi bi-play-circle me-1"></i>Evaluate Active Chart
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = "";
+  state.signals.forEach(sig => {
+    const isBuy = sig.action === "BUY";
+    const card = document.createElement("div");
+    card.className = `signal-card ${isBuy ? 'buy' : 'sell'}`;
+
+    const dateStr = sig.timestamp ? new Date(sig.timestamp).toLocaleTimeString() : "Just now";
+
+    card.innerHTML = `
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="d-flex align-items-center gap-2">
+          <span class="signal-action-badge ${isBuy ? 'buy' : 'sell'}">${sig.action}</span>
+          <span class="fw-bold fs-7 text-light">${sig.symbol}</span>
+          <span class="badge bg-dark-subtle text-secondary font-monospace fs-9">${sig.timeframe}</span>
+        </div>
+        <span class="fs-9 text-muted font-monospace">${dateStr}</span>
+      </div>
+
+      <!-- Price Target Grid -->
+      <div class="p-2 bg-dark-surface rounded border border-dark-subtle mb-2 font-monospace fs-8">
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">ENTRY:</span>
+          <span class="text-light fw-bold">$${sig.entry_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">STOP LOSS:</span>
+          <span class="text-danger fw-bold">$${sig.stop_loss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">TAKE PROFIT 1:</span>
+          <span class="text-success fw-bold">$${sig.take_profit_1.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted">TAKE PROFIT 2:</span>
+          <span class="text-success fw-bold">$${sig.take_profit_2.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div class="d-flex justify-content-between pt-1 border-top border-dark-subtle">
+          <span class="text-muted">RISK/REWARD:</span>
+          <span class="text-primary-accent fw-bold">${sig.risk_reward_ratio}</span>
+        </div>
+      </div>
+
+      <!-- Confluence Reason -->
+      <div class="fs-9 text-muted mb-2">
+        <span class="text-light fw-semibold">Trigger:</span> ${sig.trigger_reason}
+      </div>
+
+      <!-- Actions Footer -->
+      <div class="d-flex align-items-center justify-content-between pt-2 border-top border-dark-subtle fs-8">
+        <span class="badge bg-success-subtle text-success fs-9 font-monospace">
+          <i class="bi bi-shield-check me-1"></i>${sig.status || "ACTIVE"}
+        </span>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2 fs-9 btn-copy-signal" data-entry="${sig.entry_price}" data-sl="${sig.stop_loss}">
+            <i class="bi bi-clipboard me-1"></i>Copy
+          </button>
+          <button class="btn btn-sm btn-outline-info py-0 px-2 fs-9 btn-forward-signal" data-id="${sig.id}">
+            <i class="bi bi-telegram me-1"></i>Telegram
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Hook copy button
+    const copyBtn = card.querySelector(".btn-copy-signal");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const text = `${sig.action} ${sig.symbol} @ $${sig.entry_price} | SL: $${sig.stop_loss} | TP: $${sig.take_profit_1}`;
+        navigator.clipboard.writeText(text).then(() => {
+          showToast("Order Copied", text);
+        });
+      });
+    }
+
+    // Hook telegram forward button
+    const fwdBtn = card.querySelector(".btn-forward-signal");
+    if (fwdBtn) {
+      fwdBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showToast("Signal Dispatched", `Dispatched ${sig.action} ${sig.symbol} order to @IamDeva_bot!`);
+      });
+    }
+
+    container.appendChild(card);
+  });
+}
+

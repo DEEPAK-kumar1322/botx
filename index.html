@@ -323,7 +323,19 @@
 
         <!-- Quick Strategy Actions -->
         <div class="d-flex align-items-center gap-2">
-          <button class="btn btn-sm btn-outline-info d-flex align-items-center gap-1" id="triggerScanBtn" title="Run instant SMC pattern scan">
+          <!-- Quick Analyze Button -->
+          <button class="btn btn-sm btn-outline-info d-flex align-items-center gap-1" id="quickAnalyzeBtn" title="Run On-Demand Market Structure & Liquidity Analysis">
+            <i class="bi bi-cpu-fill"></i>
+            <span class="fw-semibold">Quick Analyze</span>
+          </button>
+          
+          <!-- Activate Strategy Toggle -->
+          <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-2" id="strategyToggleBtn" title="Deploy / Toggle Automated SMC Strategy Engine">
+            <span class="strategy-status-dot" id="strategyBtnDot"></span>
+            <span class="fw-semibold" id="strategyBtnText">Activate Strategy</span>
+          </button>
+
+          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" id="triggerScanBtn" title="Run instant SMC pattern scan">
             <i class="bi bi-search"></i>
             <span>Scan SMC</span>
           </button>
@@ -334,59 +346,183 @@
         </div>
       </div>
 
+      <!-- Real-Time Market Structure & Metrics Sub-Strip -->
+      <div class="chart-metrics-strip d-flex align-items-center justify-content-between px-3 py-1 bg-dark-card border-bottom border-dark-subtle font-monospace fs-8" id="chartMetricsStrip">
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex align-items-center gap-1">
+            <span class="text-secondary">BIAS:</span>
+            <span class="badge badge-bullish" id="stripBiasBadge">BULLISH</span>
+          </div>
+          <div class="d-flex align-items-center gap-1">
+            <span class="text-secondary">CONFIDENCE:</span>
+            <span class="text-primary-accent fw-bold" id="stripConfidence">92%</span>
+          </div>
+          <div class="d-none d-lg-flex align-items-center gap-1">
+            <span class="text-secondary">PHASE:</span>
+            <span class="text-light" id="stripPhase">BULLISH_EXPANSION</span>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex align-items-center gap-1">
+            <span class="text-secondary">NEAREST BSL:</span>
+            <span class="text-danger fw-bold" id="stripNearestBsl">$83,636.70</span>
+          </div>
+          <div class="d-flex align-items-center gap-1">
+            <span class="text-secondary">NEAREST SSL:</span>
+            <span class="text-success fw-bold" id="stripNearestSsl">$83,118.10</span>
+          </div>
+          <div class="d-none d-sm-flex align-items-center gap-1">
+            <span class="text-secondary">STRATEGY:</span>
+            <span class="badge bg-secondary font-monospace" id="stripStrategyState">STANDBY</span>
+          </div>
+        </div>
+      </div>
+
       <!-- TradingView Widget Embedding Container -->
       <div class="tradingview-wrapper flex-grow-1 position-relative" id="tv_chart_container">
         <!-- TradingView widget gets dynamically injected here -->
       </div>
     </section>
 
-    <!-- RIGHT PANEL: Live SMC Alerts (FVG & Order Block Notifications) -->
+    <!-- RIGHT PANEL: Live Strategy Signals, On-Demand Structure & SMC Alerts -->
     <aside class="sidebar-right border-start border-dark-subtle bg-dark-surface d-flex flex-column">
       
-      <!-- Panel Header -->
-      <div class="alerts-header p-3 border-bottom border-dark-subtle">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
-            <h3 class="fs-6 fw-bold m-0 text-light letter-spacing-1">Live SMC Alerts</h3>
-          </div>
-          <span class="badge bg-primary text-dark fw-bold rounded-pill font-monospace" id="alertsCounter">4 Active</span>
-        </div>
-
-        <!-- Filter Tabs: All, FVG, OB, Active -->
-        <div class="btn-group btn-group-sm w-100 mt-2" role="group" id="alertFilterGroup">
-          <button type="button" class="btn btn-outline-secondary active" data-filter="all">All</button>
-          <button type="button" class="btn btn-outline-secondary" data-filter="FVG">FVG</button>
-          <button type="button" class="btn btn-outline-secondary" data-filter="OB">OB</button>
-          <button type="button" class="btn btn-outline-secondary" data-filter="active">Active</button>
-        </div>
-
-        <!-- Active Asset Context Indicator -->
-        <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top border-dark-subtle fs-8">
-          <div class="d-flex align-items-center gap-1">
-            <span class="text-muted">Viewing:</span>
-            <span class="badge bg-dark-subtle text-primary-accent border border-primary-subtle font-monospace" id="currentAlertAssetBadge">BTC/USDT</span>
-          </div>
-          <button class="btn btn-sm btn-link text-decoration-none text-info fs-9 p-0" id="toggleAssetScopeBtn">
-            <i class="bi bi-funnel me-1"></i><span id="scopeBtnText">Show All Assets</span>
-          </button>
-        </div>
+      <!-- Right Panel Navigation Tabs -->
+      <div class="panel-tabs-header p-2 border-bottom border-dark-subtle bg-dark-card">
+        <ul class="nav nav-pills nav-fill" id="terminalTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active py-1 px-2 fs-8 fw-semibold d-flex align-items-center justify-content-center gap-1" id="tab-signals" data-bs-toggle="pill" data-bs-target="#pane-signals" type="button" role="tab">
+              <i class="bi bi-broadcast text-success"></i>
+              <span>Signals</span>
+              <span class="badge bg-success text-dark rounded-pill ms-1 font-monospace fs-9" id="signalsCountBadge">0</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link py-1 px-2 fs-8 fw-semibold d-flex align-items-center justify-content-center gap-1" id="tab-structure" data-bs-toggle="pill" data-bs-target="#pane-structure" type="button" role="tab">
+              <i class="bi bi-diagram-3 text-info"></i>
+              <span>Structure</span>
+              <span class="badge bg-primary-subtle text-primary-accent rounded-pill ms-1 font-monospace fs-9" id="structureTabBadge">BSL/SSL</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link py-1 px-2 fs-8 fw-semibold d-flex align-items-center justify-content-center gap-1" id="tab-alerts" data-bs-toggle="pill" data-bs-target="#pane-alerts" type="button" role="tab">
+              <i class="bi bi-lightning-charge text-warning"></i>
+              <span>SMC Setups</span>
+              <span class="badge bg-secondary rounded-pill ms-1 font-monospace fs-9" id="alertsCounter">4</span>
+            </button>
+          </li>
+        </ul>
       </div>
 
-      <!-- Alerts List Container -->
-      <div class="alerts-scroll-container flex-grow-1 overflow-y-auto custom-scrollbar p-3" id="alertsListContainer">
-        <!-- Alert cards are dynamically rendered by script.js -->
-      </div>
+      <!-- Tab Panes Content -->
+      <div class="tab-content flex-grow-1 overflow-hidden d-flex flex-column" id="terminalTabsContent">
+        
+        <!-- PANE 1: Live Strategy Execution Signals -->
+        <div class="tab-pane fade show active flex-grow-1 d-flex flex-column overflow-hidden" id="pane-signals" role="tabpanel">
+          <!-- Strategy Header & Controls -->
+          <div class="p-3 border-bottom border-dark-subtle bg-dark-surface">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="d-flex align-items-center gap-2">
+                <span class="pulse-indicator" id="signalsPulse"></span>
+                <h3 class="fs-6 fw-bold m-0 text-light letter-spacing-1">Execution Signals</h3>
+              </div>
+              <span class="badge bg-secondary-subtle text-secondary font-monospace" id="signalsEngineStatus">STANDBY</span>
+            </div>
+            <div class="d-flex align-items-center justify-content-between fs-8">
+              <span class="text-muted">Live SMC Entry & Exit Orders</span>
+              <button class="btn btn-sm btn-outline-primary-accent py-0 px-2 fs-9 font-monospace" id="evaluateLiveSignalBtn" title="Evaluate live candle confluence now">
+                <i class="bi bi-play-circle me-1"></i>Evaluate Now
+              </button>
+            </div>
+          </div>
 
-      <!-- Alerts Panel Footer Actions -->
-      <div class="alerts-footer p-2 border-top border-dark-subtle bg-dark-card d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-1 text-muted fs-8">
-          <span class="status-dot"></span>
-          <span>Auto-scanning 1m/15m/1h</span>
+          <!-- Signals Cards Feed -->
+          <div class="signals-scroll-container flex-grow-1 overflow-y-auto custom-scrollbar p-3" id="signalsFeedContainer">
+            <!-- Execution Signal Cards rendered by script.js -->
+          </div>
+
+          <!-- Strategy Footer -->
+          <div class="p-2 border-top border-dark-subtle bg-dark-card d-flex align-items-center justify-content-between fs-8 text-muted">
+            <div class="d-flex align-items-center gap-1">
+              <span class="status-dot"></span>
+              <span>Strategy Engine Active</span>
+            </div>
+            <span class="font-monospace fs-9" id="strategySignalsCount">0 orders</span>
+          </div>
         </div>
-        <button class="btn btn-sm btn-link text-decoration-none text-secondary fs-8 p-0" id="clearAlertsBtn">
-          <i class="bi bi-trash3 me-1"></i>Clear
-        </button>
+
+        <!-- PANE 2: On-Demand Structure & Liquidity (HH/HL/LH/LL & BSL/SSL) -->
+        <div class="tab-pane fade flex-grow-1 d-flex flex-column overflow-hidden" id="pane-structure" role="tabpanel">
+          <!-- Structure Header -->
+          <div class="p-3 border-bottom border-dark-subtle bg-dark-surface">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-bullseye text-primary-accent fs-6"></i>
+                <h3 class="fs-6 fw-bold m-0 text-light letter-spacing-1">Market Structure</h3>
+              </div>
+              <button class="btn btn-sm btn-outline-info py-0 px-2 fs-9 font-monospace" id="refreshStructureBtn" title="Re-calculate swing structure">
+                <i class="bi bi-arrow-repeat me-1"></i>Re-Analyze
+              </button>
+            </div>
+            <div class="fs-8 text-muted">
+              Active: <span class="text-light fw-bold font-monospace" id="structActiveAsset">BTC/USDT</span> (<span id="structActiveTf">15m</span>)
+            </div>
+          </div>
+
+          <!-- Structure & Liquidity Content -->
+          <div class="structure-scroll-container flex-grow-1 overflow-y-auto custom-scrollbar p-3" id="structureContentContainer">
+            <!-- Dynamic Structure, Swings (HH, HL, LH, LL) and BSL/SSL Liquidity rendered by script.js -->
+          </div>
+        </div>
+
+        <!-- PANE 3: Live SMC Alerts (FVG & Order Block Setups) -->
+        <div class="tab-pane fade flex-grow-1 d-flex flex-column overflow-hidden" id="pane-alerts" role="tabpanel">
+          <div class="alerts-header p-3 border-bottom border-dark-subtle">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
+                <h3 class="fs-6 fw-bold m-0 text-light letter-spacing-1">Live SMC Alerts</h3>
+              </div>
+              <span class="badge bg-primary text-dark fw-bold rounded-pill font-monospace" id="alertsCounterSub">4 Active</span>
+            </div>
+
+            <!-- Filter Tabs: All, FVG, OB, Active -->
+            <div class="btn-group btn-group-sm w-100 mt-2" role="group" id="alertFilterGroup">
+              <button type="button" class="btn btn-outline-secondary active" data-filter="all">All</button>
+              <button type="button" class="btn btn-outline-secondary" data-filter="FVG">FVG</button>
+              <button type="button" class="btn btn-outline-secondary" data-filter="OB">OB</button>
+              <button type="button" class="btn btn-outline-secondary" data-filter="active">Active</button>
+            </div>
+
+            <!-- Active Asset Context Indicator -->
+            <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top border-dark-subtle fs-8">
+              <div class="d-flex align-items-center gap-1">
+                <span class="text-muted">Viewing:</span>
+                <span class="badge bg-dark-subtle text-primary-accent border border-primary-subtle font-monospace" id="currentAlertAssetBadge">BTC/USDT</span>
+              </div>
+              <button class="btn btn-sm btn-link text-decoration-none text-info fs-9 p-0" id="toggleAssetScopeBtn">
+                <i class="bi bi-funnel me-1"></i><span id="scopeBtnText">Show All Assets</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Alerts List Container -->
+          <div class="alerts-scroll-container flex-grow-1 overflow-y-auto custom-scrollbar p-3" id="alertsListContainer">
+            <!-- Alert cards are dynamically rendered by script.js -->
+          </div>
+
+          <!-- Alerts Panel Footer Actions -->
+          <div class="alerts-footer p-2 border-top border-dark-subtle bg-dark-card d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-1 text-muted fs-8">
+              <span class="status-dot"></span>
+              <span>Auto-scanning 1m/15m/1h</span>
+            </div>
+            <button class="btn btn-sm btn-link text-decoration-none text-secondary fs-8 p-0" id="clearAlertsBtn">
+              <i class="bi bi-trash3 me-1"></i>Clear
+            </button>
+          </div>
+        </div>
+
       </div>
 
     </aside>

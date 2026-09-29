@@ -282,3 +282,176 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
     left: 0;
   }
 }
+
+/* ==========================================================================
+   Terminal Extensions: Strategy Deployment & Market Structure Liquidity
+   ========================================================================== */
+
+/* Strategy Status Indicator Dot */
+.strategy-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #64748b;
+  transition: all 0.3s ease;
+}
+.strategy-status-dot.active {
+  background-color: var(--accent-bullish);
+  box-shadow: 0 0 8px var(--accent-bullish);
+  animation: pulse-green 1.8s infinite;
+}
+
+/* Button Outline Primary Accent */
+.btn-outline-primary-accent {
+  color: var(--primary-accent) !important;
+  border-color: rgba(0, 242, 254, 0.4) !important;
+}
+.btn-outline-primary-accent:hover {
+  background-color: rgba(0, 242, 254, 0.15) !important;
+  border-color: var(--primary-accent) !important;
+  color: #fff !important;
+}
+
+/* Panel Tabs in Right Sidebar */
+.panel-tabs-header .nav-pills .nav-link {
+  color: var(--text-muted);
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+.panel-tabs-header .nav-pills .nav-link:hover {
+  color: var(--text-main);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.panel-tabs-header .nav-pills .nav-link.active {
+  background-color: rgba(0, 242, 254, 0.12);
+  color: var(--primary-accent);
+  border-color: rgba(0, 242, 254, 0.3);
+}
+
+/* Real-Time Metrics Sub-Strip below Chart Header */
+.chart-metrics-strip {
+  min-height: 32px;
+  background-color: rgba(15, 20, 31, 0.95);
+  font-size: 0.75rem;
+}
+
+/* Execution Signal Cards */
+.signal-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.signal-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+.signal-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+}
+.signal-card.buy {
+  border-color: rgba(0, 230, 118, 0.35);
+}
+.signal-card.buy::before {
+  background-color: var(--accent-bullish);
+  box-shadow: 0 0 10px var(--accent-bullish);
+}
+.signal-card.sell {
+  border-color: rgba(255, 51, 102, 0.35);
+}
+.signal-card.sell::before {
+  background-color: var(--accent-bearish);
+  box-shadow: 0 0 10px var(--accent-bearish);
+}
+
+.signal-action-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.signal-action-badge.buy {
+  background-color: rgba(0, 230, 118, 0.15);
+  color: var(--accent-bullish);
+  border: 1px solid rgba(0, 230, 118, 0.35);
+}
+.signal-action-badge.sell {
+  background-color: rgba(255, 51, 102, 0.15);
+  color: var(--accent-bearish);
+  border: 1px solid rgba(255, 51, 102, 0.35);
+}
+
+/* Market Structure & Liquidity Elements */
+.structure-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.swing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-family: monospace;
+  font-weight: 700;
+}
+.swing-chip.hh, .swing-chip.hl {
+  background-color: rgba(0, 230, 118, 0.12);
+  color: var(--accent-bullish);
+  border: 1px solid rgba(0, 230, 118, 0.3);
+}
+.swing-chip.lh, .swing-chip.ll {
+  background-color: rgba(255, 51, 102, 0.12);
+  color: var(--accent-bearish);
+  border: 1px solid rgba(255, 51, 102, 0.3);
+}
+
+.badge-bsl {
+  background-color: rgba(255, 51, 102, 0.12);
+  color: #ff5277;
+  border: 1px solid rgba(255, 51, 102, 0.3);
+}
+.badge-ssl {
+  background-color: rgba(0, 230, 118, 0.12);
+  color: #00e676;
+  border: 1px solid rgba(0, 230, 118, 0.3);
+}
+.badge-ranging {
+  background-color: rgba(255, 179, 0, 0.12);
+  color: var(--accent-warning);
+  border: 1px solid rgba(255, 179, 0, 0.3);
+}
+
+.liquidity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  margin-bottom: 6px;
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+.liquidity-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+

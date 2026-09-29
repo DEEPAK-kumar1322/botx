@@ -16,3 +16,7 @@ pydantic>=2.8.0
 # --- Logging & UI ---
 rich>=13.8.0
 loguru>=0.7.2
+
+# --- Backend API Service ---
+fastapi>=0.115.0
+uvicorn>=0.30.0
