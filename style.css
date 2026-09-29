@@ -566,18 +566,68 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   flex-shrink: 0;
 }
 
+/* Strategy Selection Cards Container & Track */
+#hubStrategiesCardsContainer,
+.hub-strategies-track {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 16px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding: 4px 2px 14px 2px !important;
+  margin: 0 !important;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Custom scrollbar for strategy cards track */
+#hubStrategiesCardsContainer::-webkit-scrollbar {
+  height: 6px;
+}
+#hubStrategiesCardsContainer::-webkit-scrollbar-track {
+  background: rgba(15, 20, 31, 0.6);
+  border-radius: 4px;
+}
+#hubStrategiesCardsContainer::-webkit-scrollbar-thumb {
+  background: #1e283d;
+  border-radius: 4px;
+}
+#hubStrategiesCardsContainer::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-accent);
+}
+
+.hub-strategy-card-wrapper,
+.hub-strategy-col {
+  flex: 0 0 310px !important;
+  min-width: 290px !important;
+  max-width: 350px !important;
+  width: 310px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
 /* Strategy Selection Cards */
 .hub-strategy-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 18px;
   cursor: pointer;
   position: relative;
   transition: all 0.22s ease-in-out;
-  display: flex;
-  flex-column;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between;
   height: 100%;
+  min-height: 260px;
+  width: 100%;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  word-break: break-word;
 }
 .hub-strategy-card:hover {
   transform: translateY(-3px);
@@ -593,14 +643,33 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   border-left: 4px solid var(--accent-bullish);
 }
 
+.hub-strategy-card h4 {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.hub-strategy-card p {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 .hub-strategy-card .strat-icon-box {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
+  flex-shrink: 0;
 }
 
 /* Parameter Pill in Strategy Card */
@@ -609,10 +678,13 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   background-color: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 3px 7px;
   font-size: 0.68rem;
   font-family: monospace;
   color: var(--text-muted);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 
 /* Analysis Results Section Cards */

@@ -1636,55 +1636,55 @@ function renderHubStrategyCards() {
     const iconMeta = iconMap[strat.id] || { icon: "bi-cpu", color: "text-light", bg: "bg-dark-subtle" };
 
     const col = document.createElement("div");
-    col.className = "col-12 col-md-6 col-xl-3";
+    col.className = "hub-strategy-card-wrapper flex-shrink-0";
 
     col.innerHTML = `
       <div class="hub-strategy-card ${isSelected ? 'selected' : ''} ${isDeployed ? 'deployed-active' : ''}" data-strategy-id="${strat.id}">
         
         <!-- Top Row: Icon, Title, Status Tag -->
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <div class="d-flex align-items-center gap-2">
-            <div class="strat-icon-box ${iconMeta.bg}">
+        <div class="d-flex align-items-start justify-content-between mb-2 gap-2" style="min-width: 0; width: 100%;">
+          <div class="d-flex align-items-start gap-2" style="min-width: 0; flex: 1 1 auto;">
+            <div class="strat-icon-box ${iconMeta.bg} flex-shrink-0">
               <i class="bi ${iconMeta.icon} ${iconMeta.color}"></i>
             </div>
-            <div>
-              <h4 class="fs-7 fw-bold m-0 text-light">${strat.name}</h4>
-              <span class="fs-9 text-muted font-monospace">${strat.category}</span>
+            <div style="min-width: 0; flex: 1 1 auto;">
+              <h4 class="fs-7 fw-bold m-0 text-light" style="word-wrap: break-word; overflow-wrap: break-word; white-space: normal; line-height: 1.25;">${strat.name}</h4>
+              <span class="fs-9 text-muted font-monospace d-block mt-1" style="word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">${strat.category}</span>
             </div>
           </div>
           ${isDeployed 
-            ? `<span class="badge bg-success-subtle text-success font-monospace fs-9 border border-success-subtle"><i class="bi bi-broadcast me-1"></i>DEPLOYED</span>`
-            : `<span class="badge bg-dark-subtle text-secondary font-monospace fs-9">IDLE</span>`
+            ? `<span class="badge bg-success-subtle text-success font-monospace fs-9 border border-success-subtle flex-shrink-0"><i class="bi bi-broadcast me-1"></i>DEPLOYED</span>`
+            : `<span class="badge bg-dark-subtle text-secondary font-monospace fs-9 flex-shrink-0">IDLE</span>`
           }
         </div>
 
         <!-- Strategy Description -->
-        <p class="fs-8 text-secondary mb-3 flex-grow-1" style="min-height: 48px; line-height: 1.35;">
+        <p class="fs-8 text-secondary mb-3 flex-grow-1" style="min-height: 52px; line-height: 1.45; word-wrap: break-word; overflow-wrap: break-word; white-space: normal; word-break: break-word;">
           ${strat.description}
         </p>
 
         <!-- Timeframes & Confluence Parameters -->
-        <div class="mb-3 pt-2 border-top border-dark-subtle">
-          <div class="d-flex align-items-center justify-content-between mb-1">
-            <span class="fs-9 text-muted">Timeframes:</span>
-            <div class="d-flex gap-1">
+        <div class="mb-3 pt-2 border-top border-dark-subtle" style="width: 100%;">
+          <div class="d-flex align-items-center justify-content-between mb-1 gap-2">
+            <span class="fs-9 text-muted flex-shrink-0">Timeframes:</span>
+            <div class="d-flex flex-wrap gap-1 justify-content-end">
               ${strat.timeframes.map(tf => `<span class="badge bg-dark-subtle text-light font-monospace fs-9">${tf}</span>`).join('')}
             </div>
           </div>
 
           <div class="d-flex flex-wrap gap-1 mt-2">
             ${Object.entries(strat.parameters || {}).slice(0, 3).map(([k, v]) => `
-              <span class="param-pill">${k.replace(/_/g, ' ')}: <b class="text-light">${v}</b></span>
+              <span class="param-pill" style="word-wrap: break-word; overflow-wrap: break-word; white-space: normal;">${k.replace(/_/g, ' ')}: <b class="text-light">${v}</b></span>
             `).join('')}
           </div>
         </div>
 
         <!-- Card Bottom Action -->
-        <div class="d-flex align-items-center justify-content-between pt-2 border-top border-dark-subtle">
-          <span class="fs-9 ${isSelected ? 'text-primary-accent fw-bold' : 'text-muted'}">
+        <div class="d-flex align-items-center justify-content-between pt-2 border-top border-dark-subtle mt-auto gap-2" style="width: 100%;">
+          <span class="fs-9 ${isSelected ? 'text-primary-accent fw-bold' : 'text-muted'} text-truncate">
             ${isSelected ? '<i class="bi bi-check-circle-fill me-1"></i>Selected for Analysis' : 'Click to Select'}
           </span>
-          <button class="btn btn-sm ${isSelected ? 'btn-primary-accent text-dark' : 'btn-outline-secondary'} py-0 px-2 fs-9 font-monospace">
+          <button class="btn btn-sm ${isSelected ? 'btn-primary-accent text-dark' : 'btn-outline-secondary'} py-0 px-2 fs-9 font-monospace flex-shrink-0">
             ${isSelected ? 'ACTIVE' : 'SELECT'}
           </button>
         </div>
