@@ -522,3 +522,212 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   background-color: rgba(255, 255, 255, 0.04);
 }
 
+/* ==========================================================================
+   Modular Strategy Hub Page Styles
+   ========================================================================== */
+
+/* Navbar View Switcher */
+.view-switch-btn {
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+}
+.view-switch-btn:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.view-switch-btn.active {
+  color: #050b14 !important;
+  background: var(--primary-gradient) !important;
+  border-color: var(--primary-accent);
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.35);
+  font-weight: 700;
+}
+.view-switch-btn.active .badge {
+  background-color: #050b14 !important;
+  color: var(--primary-accent) !important;
+}
+
+/* Strategy Hub Header & Icon Badge */
+.hub-header-banner {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.hub-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--primary-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+  flex-shrink: 0;
+}
+
+/* Strategy Selection Cards */
+.hub-strategy-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.22s ease-in-out;
+  display: flex;
+  flex-column;
+  height: 100%;
+}
+.hub-strategy-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(0, 242, 254, 0.45);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.hub-strategy-card.selected {
+  border-color: var(--primary-accent);
+  box-shadow: 0 0 16px rgba(0, 242, 254, 0.25), inset 0 0 10px rgba(0, 242, 254, 0.05);
+  background-color: rgba(15, 20, 31, 0.95);
+}
+.hub-strategy-card.deployed-active {
+  border-left: 4px solid var(--accent-bullish);
+}
+
+.hub-strategy-card .strat-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+/* Parameter Pill in Strategy Card */
+.param-pill {
+  display: inline-block;
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.68rem;
+  font-family: monospace;
+  color: var(--text-muted);
+}
+
+/* Analysis Results Section Cards */
+.hub-result-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Step A Structure Summary Card */
+.step-structure-card {
+  border-left: 4px solid var(--accent-info);
+}
+
+/* High-Probability Valid Entry Card */
+.entry-confirmed-card {
+  border: 1px solid rgba(0, 230, 118, 0.5) !important;
+  border-left: 5px solid var(--accent-bullish) !important;
+  background: linear-gradient(180deg, rgba(0, 230, 118, 0.05) 0%, rgba(15, 20, 31, 0.95) 100%);
+  box-shadow: 0 0 20px rgba(0, 230, 118, 0.2);
+}
+
+/* Strict Wait State Card */
+.wait-state-card {
+  border: 1px solid rgba(255, 179, 0, 0.45) !important;
+  border-left: 5px solid var(--accent-warning) !important;
+  background: linear-gradient(180deg, rgba(255, 179, 0, 0.04) 0%, rgba(15, 20, 31, 0.95) 100%);
+  box-shadow: 0 0 18px rgba(255, 179, 0, 0.12);
+}
+
+.wait-state-badge {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background-color: rgba(255, 179, 0, 0.15);
+  border: 1px solid rgba(255, 179, 0, 0.5);
+  color: #ffca28;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Confluence Checklist Items */
+.confluence-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 6px;
+  transition: background-color 0.15s ease;
+}
+.confluence-list-item:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.confluence-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: monospace;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.confluence-pill.passed {
+  background-color: rgba(0, 230, 118, 0.15);
+  color: var(--accent-bullish);
+  border: 1px solid rgba(0, 230, 118, 0.35);
+}
+.confluence-pill.waiting {
+  background-color: rgba(255, 179, 0, 0.15);
+  color: var(--accent-warning);
+  border: 1px solid rgba(255, 179, 0, 0.35);
+}
+
+/* Wait Reasons Box */
+.wait-reasons-box {
+  background-color: rgba(255, 179, 0, 0.06);
+  border: 1px solid rgba(255, 179, 0, 0.2);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+/* Telegram Anti-Spam Pill */
+.anti-spam-badge {
+  font-size: 0.72rem;
+  font-family: monospace;
+  border-radius: 4px;
+  padding: 3px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.anti-spam-badge.sent {
+  background-color: rgba(0, 230, 118, 0.12);
+  color: var(--accent-bullish);
+  border: 1px solid rgba(0, 230, 118, 0.3);
+}
+.anti-spam-badge.cooldown {
+  background-color: rgba(41, 182, 246, 0.12);
+  color: var(--accent-info);
+  border: 1px solid rgba(41, 182, 246, 0.3);
+}
+.anti-spam-badge.wait {
+  background-color: rgba(148, 163, 184, 0.12);
+  color: var(--text-muted);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+

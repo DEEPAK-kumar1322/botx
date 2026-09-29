@@ -21,6 +21,16 @@ const state = {
   isEvaluating: false,
   pollingTimer: null,
 
+  // Strategy Hub State
+  hubActiveView: "terminal",
+  hubCurrentStrategyId: "smc",
+  hubStrategies: [],
+  hubDeployActive: false,
+  hubIsAnalyzing: false,
+  hubAuditLogs: [],
+  hubTargetAsset: "BTC/USDT",
+  hubTargetTimeframe: "15m",
+
   // Multi-Asset Live SMC Setups
   alerts: [
     // --- BTC/USDT Setups ---
@@ -336,6 +346,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initActionButtons();
   initScopeToggle();
   initTerminalExtensions();
+  initStrategyHub();
   renderAlerts();
 
   // Initial On-Demand Structure Analysis & Live Signals Fetch
@@ -1400,4 +1411,760 @@ function renderSignalsFeed() {
     container.appendChild(card);
   });
 }
+
+/* ==========================================================================
+   Modular Strategy Hub Controller
+   ========================================================================== */
+
+/**
+ * Initialize Strategy Hub Event Listeners and Initial Data
+ */
+function initStrategyHub() {
+  // 1. Navigation View Switchers
+  const btnNavTerminal = document.getElementById("btnNavTerminal");
+  const btnNavHub = document.getElementById("btnNavStrategyHub");
+  const btnChartGoHub = document.getElementById("chartGoStrategyHubBtn");
+
+  if (btnNavTerminal) {
+    btnNavTerminal.addEventListener("click", () => switchView("terminal"));
+  }
+  if (btnNavHub) {
+    btnNavHub.addEventListener("click", () => switchView("hub"));
+  }
+  if (btnChartGoHub) {
+    btnChartGoHub.addEventListener("click", () => switchView("hub"));
+  }
+
+  // 2. Hub Selectors (Asset & Timeframe)
+  const hubAssetSelector = document.getElementById("hubAssetSelector");
+  if (hubAssetSelector) {
+    hubAssetSelector.addEventListener("change", (e) => {
+      state.hubTargetAsset = e.target.value;
+      showToast("Strategy Hub Target", `Target asset updated to ${state.hubTargetAsset}`);
+    });
+  }
+
+  const hubTimeframeSelector = document.getElementById("hubTimeframeSelector");
+  if (hubTimeframeSelector) {
+    hubTimeframeSelector.addEventListener("change", (e) => {
+      state.hubTargetTimeframe = e.target.value;
+      showToast("Strategy Hub Timeframe", `Execution timeframe set to ${state.hubTargetTimeframe}`);
+    });
+  }
+
+  // 3. Deploy Active Strategy Toggle Button
+  const hubDeployToggleBtn = document.getElementById("hubDeployToggleBtn");
+  if (hubDeployToggleBtn) {
+    hubDeployToggleBtn.addEventListener("click", () => {
+      toggleHubDeployState();
+    });
+  }
+
+  // 4. Run Strategy Analysis Action Buttons
+  const hubRunAnalysisBtn = document.getElementById("hubRunAnalysisBtn");
+  if (hubRunAnalysisBtn) {
+    hubRunAnalysisBtn.addEventListener("click", () => {
+      runHubStrategyAnalysis();
+    });
+  }
+
+  const hubInitialRunBtn = document.getElementById("hubInitialRunBtn");
+  if (hubInitialRunBtn) {
+    hubInitialRunBtn.addEventListener("click", () => {
+      runHubStrategyAnalysis();
+    });
+  }
+
+  // 5. Initial Data Fetch: Strategies and History
+  fetchHubStrategies();
+  fetchHubHistory();
+}
+
+/**
+ * View Switcher: Terminal Chart vs Strategy Hub
+ */
+function switchView(viewName) {
+  const terminalView = document.getElementById("viewTerminal");
+  const hubView = document.getElementById("viewStrategyHub");
+  const btnTerminal = document.getElementById("btnNavTerminal");
+  const btnHub = document.getElementById("btnNavStrategyHub");
+
+  if (viewName === "hub") {
+    state.hubActiveView = "hub";
+    if (terminalView) {
+      terminalView.classList.add("d-none");
+      terminalView.classList.remove("d-flex");
+    }
+    if (hubView) {
+      hubView.classList.remove("d-none");
+      hubView.classList.add("d-flex");
+    }
+    if (btnTerminal) btnTerminal.classList.remove("active");
+    if (btnHub) btnHub.classList.add("active");
+
+    // Sync Asset Selector with Current Terminal Asset
+    const hubAssetSelector = document.getElementById("hubAssetSelector");
+    if (hubAssetSelector && state.currentDisplay) {
+      hubAssetSelector.value = state.currentDisplay;
+      state.hubTargetAsset = state.currentDisplay;
+    }
+
+    // Sync Timeframe with Terminal Timeframe
+    const hubTimeframeSelector = document.getElementById("hubTimeframeSelector");
+    if (hubTimeframeSelector && state.currentInterval) {
+      const normTf = getNormalizedTf(state.currentInterval);
+      hubTimeframeSelector.value = normTf;
+      state.hubTargetTimeframe = normTf;
+    }
+
+    // Refresh audit history on viewing hub
+    fetchHubHistory();
+
+  } else {
+    state.hubActiveView = "terminal";
+    if (hubView) {
+      hubView.classList.add("d-none");
+      hubView.classList.remove("d-flex");
+    }
+    if (terminalView) {
+      terminalView.classList.remove("d-none");
+      terminalView.classList.add("d-flex");
+    }
+    if (btnHub) btnHub.classList.remove("active");
+    if (btnTerminal) btnTerminal.classList.add("active");
+
+    // Trigger chart widget resize
+    if (typeof TradingView !== "undefined") {
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 50);
+    }
+  }
+}
+
+/**
+ * Fetch All Available Modular Strategies from /api/strategies
+ */
+async function fetchHubStrategies() {
+  try {
+    const res = await fetch("/api/strategies");
+    if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+    const data = await res.json();
+    state.hubStrategies = data;
+
+    // Check which strategy is currently active
+    const activeStrat = data.find(s => s.is_active);
+    if (activeStrat) {
+      state.hubCurrentStrategyId = activeStrat.id;
+      state.hubDeployActive = true;
+    } else if (data.length > 0 && !state.hubCurrentStrategyId) {
+      state.hubCurrentStrategyId = data[0].id;
+      state.hubDeployActive = false;
+    }
+
+    updateHubDeployUi();
+    renderHubStrategyCards();
+
+  } catch (err) {
+    console.error("Error fetching modular strategies:", err);
+  }
+}
+
+/**
+ * Update Header and Deploy Toggle UI Elements
+ */
+function updateHubDeployUi() {
+  const currentStrat = state.hubStrategies.find(s => s.id === state.hubCurrentStrategyId);
+  const stratName = currentStrat ? currentStrat.name : "SMC";
+  const stratShort = state.hubCurrentStrategyId.toUpperCase();
+
+  // Top Nav Badge
+  const navBadge = document.getElementById("navActiveStratBadge");
+  if (navBadge) {
+    navBadge.textContent = state.hubDeployActive ? `${stratShort} ON` : stratShort;
+    navBadge.className = state.hubDeployActive 
+      ? "badge bg-primary text-dark rounded-pill ms-1 font-monospace fs-9"
+      : "badge bg-secondary-subtle text-secondary rounded-pill ms-1 font-monospace fs-9";
+  }
+
+  // Hub Header Banner Tag
+  const hubTag = document.getElementById("hubActiveStrategyTag");
+  if (hubTag) {
+    hubTag.textContent = state.hubDeployActive ? `${stratShort} ACTIVE` : `${stratShort} STANDBY`;
+    hubTag.className = state.hubDeployActive
+      ? "badge bg-primary text-dark font-monospace fs-9 fw-bold"
+      : "badge bg-secondary-subtle text-secondary font-monospace fs-9 fw-bold";
+  }
+
+  // Deploy Toggle Button
+  const toggleBtn = document.getElementById("hubDeployToggleBtn");
+  const dot = document.getElementById("hubDeployDot");
+  const text = document.getElementById("hubDeployBtnText");
+
+  if (toggleBtn && dot && text) {
+    if (state.hubDeployActive) {
+      toggleBtn.className = "btn btn-sm btn-success d-flex align-items-center gap-2";
+      dot.className = "strategy-status-dot active";
+      text.textContent = "Strategy Deployed";
+    } else {
+      toggleBtn.className = "btn btn-sm btn-outline-success d-flex align-items-center gap-2";
+      dot.className = "strategy-status-dot";
+      text.textContent = "Activate Strategy";
+    }
+  }
+}
+
+/**
+ * Render Strategy Selection Cards Grid
+ */
+function renderHubStrategyCards() {
+  const container = document.getElementById("hubStrategiesCardsContainer");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  const iconMap = {
+    smc: { icon: "bi-shield-shaded", color: "text-primary-accent", bg: "bg-primary-subtle" },
+    ema_cross: { icon: "bi-graph-up-arrow", color: "text-success", bg: "bg-success-subtle" },
+    bollinger_bands: { icon: "bi-water", color: "text-warning", bg: "bg-warning-subtle" },
+    custom: { icon: "bi-sliders", color: "text-info", bg: "bg-info-subtle" }
+  };
+
+  state.hubStrategies.forEach(strat => {
+    const isSelected = strat.id === state.hubCurrentStrategyId;
+    const isDeployed = strat.is_active;
+    const iconMeta = iconMap[strat.id] || { icon: "bi-cpu", color: "text-light", bg: "bg-dark-subtle" };
+
+    const col = document.createElement("div");
+    col.className = "col-12 col-md-6 col-xl-3";
+
+    col.innerHTML = `
+      <div class="hub-strategy-card ${isSelected ? 'selected' : ''} ${isDeployed ? 'deployed-active' : ''}" data-strategy-id="${strat.id}">
+        
+        <!-- Top Row: Icon, Title, Status Tag -->
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="d-flex align-items-center gap-2">
+            <div class="strat-icon-box ${iconMeta.bg}">
+              <i class="bi ${iconMeta.icon} ${iconMeta.color}"></i>
+            </div>
+            <div>
+              <h4 class="fs-7 fw-bold m-0 text-light">${strat.name}</h4>
+              <span class="fs-9 text-muted font-monospace">${strat.category}</span>
+            </div>
+          </div>
+          ${isDeployed 
+            ? `<span class="badge bg-success-subtle text-success font-monospace fs-9 border border-success-subtle"><i class="bi bi-broadcast me-1"></i>DEPLOYED</span>`
+            : `<span class="badge bg-dark-subtle text-secondary font-monospace fs-9">IDLE</span>`
+          }
+        </div>
+
+        <!-- Strategy Description -->
+        <p class="fs-8 text-secondary mb-3 flex-grow-1" style="min-height: 48px; line-height: 1.35;">
+          ${strat.description}
+        </p>
+
+        <!-- Timeframes & Confluence Parameters -->
+        <div class="mb-3 pt-2 border-top border-dark-subtle">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <span class="fs-9 text-muted">Timeframes:</span>
+            <div class="d-flex gap-1">
+              ${strat.timeframes.map(tf => `<span class="badge bg-dark-subtle text-light font-monospace fs-9">${tf}</span>`).join('')}
+            </div>
+          </div>
+
+          <div class="d-flex flex-wrap gap-1 mt-2">
+            ${Object.entries(strat.parameters || {}).slice(0, 3).map(([k, v]) => `
+              <span class="param-pill">${k.replace(/_/g, ' ')}: <b class="text-light">${v}</b></span>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Card Bottom Action -->
+        <div class="d-flex align-items-center justify-content-between pt-2 border-top border-dark-subtle">
+          <span class="fs-9 ${isSelected ? 'text-primary-accent fw-bold' : 'text-muted'}">
+            ${isSelected ? '<i class="bi bi-check-circle-fill me-1"></i>Selected for Analysis' : 'Click to Select'}
+          </span>
+          <button class="btn btn-sm ${isSelected ? 'btn-primary-accent text-dark' : 'btn-outline-secondary'} py-0 px-2 fs-9 font-monospace">
+            ${isSelected ? 'ACTIVE' : 'SELECT'}
+          </button>
+        </div>
+
+      </div>
+    `;
+
+    // Click on Strategy Card selects it
+    const cardEl = col.querySelector(".hub-strategy-card");
+    if (cardEl) {
+      cardEl.addEventListener("click", () => {
+        selectHubStrategy(strat.id);
+      });
+    }
+
+    container.appendChild(col);
+  });
+}
+
+/**
+ * Handle Strategy Card Selection
+ */
+function selectHubStrategy(strategyId) {
+  state.hubCurrentStrategyId = strategyId;
+  const strat = state.hubStrategies.find(s => s.id === strategyId);
+  renderHubStrategyCards();
+  updateHubDeployUi();
+  showToast("Strategy Selected", `Now analyzing setups using ${strat ? strat.name : strategyId}`);
+}
+
+/**
+ * Toggle Active Strategy Deployment via /api/strategies/activate
+ */
+async function toggleHubDeployState() {
+  const newDeployState = !state.hubDeployActive;
+  try {
+    const res = await fetch("/api/strategies/activate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        strategy_id: state.hubCurrentStrategyId,
+        enable: newDeployState
+      })
+    });
+
+    if (!res.ok) throw new Error(`Activation failed: ${res.status}`);
+    const updatedStrat = await res.json();
+
+    state.hubDeployActive = updatedStrat.is_active;
+
+    // Update in strategies array
+    state.hubStrategies.forEach(s => {
+      s.is_active = (s.id === state.hubCurrentStrategyId && updatedStrat.is_active);
+    });
+
+    updateHubDeployUi();
+    renderHubStrategyCards();
+
+    showToast(
+      updatedStrat.is_active ? "Strategy Deployed" : "Strategy Standby",
+      `${updatedStrat.name} is now ${updatedStrat.is_active ? "actively monitoring and evaluating live feeds" : "in standby"}.`
+    );
+
+  } catch (err) {
+    console.error("Failed to toggle strategy deployment:", err);
+    showToast("Activation Error", "Could not toggle strategy deployment state.");
+  }
+}
+
+/**
+ * Run Strategy Analysis (Step A: Market Structure & Bias + Step B: Multi-timeframe Confluence)
+ */
+async function runHubStrategyAnalysis() {
+  const asset = state.hubTargetAsset || "BTC/USDT";
+  const tf = state.hubTargetTimeframe || "15m";
+  const stratId = state.hubCurrentStrategyId || "smc";
+
+  const runBtn = document.getElementById("hubRunAnalysisBtn");
+  const initialRunBtn = document.getElementById("hubInitialRunBtn");
+
+  if (runBtn) {
+    runBtn.disabled = true;
+    runBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Evaluating Confluence...`;
+  }
+  if (initialRunBtn) {
+    initialRunBtn.disabled = true;
+    initialRunBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Evaluating...`;
+  }
+
+  try {
+    const url = `/api/strategies/analyze?symbol=${encodeURIComponent(asset)}&timeframe=${encodeURIComponent(tf)}&strategy_id=${encodeURIComponent(stratId)}`;
+    const res = await fetch(url, { method: "POST" });
+    if (!res.ok) throw new Error(`Analysis failed with status ${res.status}`);
+    const data = await res.json();
+
+    // Render Two-Step Results View
+    renderHubAnalysisResult(data);
+
+    // Refresh Audit Log Table
+    fetchHubHistory();
+
+    // User Notification
+    if (data.has_entry) {
+      showToast(
+        "High-Probability Setup Confirmed",
+        `${data.entry_zone.action} ${data.symbol} confirmed @ $${data.entry_zone.entry} | RRR: ${data.entry_zone.risk_reward_ratio}`
+      );
+    } else {
+      showToast(
+        "Strategy Evaluated (Wait State)",
+        "No valid entry right now, please wait. BotX is guarding your capital."
+      );
+    }
+
+  } catch (err) {
+    console.error("Strategy analysis error:", err);
+    showToast("Analysis Error", `Failed to complete strategy analysis for ${asset}`);
+  } finally {
+    if (runBtn) {
+      runBtn.disabled = false;
+      runBtn.innerHTML = `<i class="bi bi-play-circle-fill fs-6 me-1"></i><span>Run Strategy Analysis</span>`;
+    }
+    if (initialRunBtn) {
+      initialRunBtn.disabled = false;
+      initialRunBtn.innerHTML = `<i class="bi bi-play-circle me-1"></i>Run Strategy Analysis Now`;
+    }
+  }
+}
+
+/**
+ * Render Complete Two-Step Analysis Results (Structure + Confluence or Strict Wait State)
+ */
+function renderHubAnalysisResult(data) {
+  const container = document.getElementById("hubAnalysisSection");
+  if (!container) return;
+
+  const struct = data.step_a_structure || {};
+  const isBuy = data.entry_zone && data.entry_zone.action === "BUY";
+  const hasEntry = data.has_entry === true;
+
+  // Format Swings for visual chips
+  const swingsHtml = (struct.swings || []).slice(-6).map(sw => `
+    <span class="swing-chip ${sw.label.toLowerCase()}" title="${sw.point_type} @ ${sw.timestamp}">
+      ${sw.label} $${sw.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </span>
+  `).join('');
+
+  // Step A: Directional Bias Badge
+  let biasBadge = `<span class="badge badge-bullish fs-8 font-monospace">🟢 BULLISH</span>`;
+  if (struct.directional_bias === "BEARISH") {
+    biasBadge = `<span class="badge badge-bearish fs-8 font-monospace">🔴 BEARISH</span>`;
+  } else if (struct.directional_bias === "RANGING") {
+    biasBadge = `<span class="badge badge-ranging fs-8 font-monospace">🟡 RANGING</span>`;
+  }
+
+  // Telegram Anti-Spam Status Formatting
+  let tgBadge = `<span class="anti-spam-badge wait"><i class="bi bi-shield-lock"></i> Standby (No Setup)</span>`;
+  if (data.telegram_status && data.telegram_status.alert_sent) {
+    tgBadge = `<span class="anti-spam-badge sent"><i class="bi bi-telegram"></i> Dispatched to @IamDeva_bot</span>`;
+  } else if (data.telegram_status && data.telegram_status.cooldown_active) {
+    tgBadge = `<span class="anti-spam-badge cooldown"><i class="bi bi-hourglass-split"></i> Cooldown Active (${Math.round(data.telegram_status.cooldown_remaining_sec / 60)}m left)</span>`;
+  }
+
+  container.innerHTML = `
+    <!-- Top Result Meta Strip -->
+    <div class="d-flex flex-wrap align-items-center justify-content-between p-2 mb-3 bg-dark-card rounded border border-dark-subtle fs-8">
+      <div class="d-flex align-items-center gap-3">
+        <div>
+          <span class="text-secondary">EVALUATION ID:</span>
+          <span class="fw-bold text-light font-monospace">${data.id}</span>
+        </div>
+        <div>
+          <span class="text-secondary">ASSET:</span>
+          <span class="fw-bold text-primary-accent font-monospace">${data.symbol} (${data.timeframe})</span>
+        </div>
+        <div>
+          <span class="text-secondary">STRATEGY:</span>
+          <span class="fw-bold text-light">${data.strategy_name}</span>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge ${hasEntry ? 'bg-success text-dark' : 'bg-warning-subtle text-warning border border-warning-subtle'} font-monospace fs-8">
+          ${data.confluence_score}% CONFLUENCE SCORE
+        </span>
+        <span class="text-muted font-monospace fs-9">${new Date(data.evaluated_at).toLocaleTimeString()} UTC</span>
+      </div>
+    </div>
+
+    <!-- 2-Card Two-Step Layout: Step A (Structure) + Step B (Strategy Execution / Wait State) -->
+    <div class="row g-3">
+      
+      <!-- STEP A CARD: Base Market Structure & Bias -->
+      <div class="col-12 col-xl-5">
+        <div class="hub-result-card step-structure-card p-3 h-100 d-flex flex-column">
+          
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-info text-dark fw-bold font-monospace fs-9">STEP A</span>
+              <h4 class="fs-7 fw-bold m-0 text-light">Market Structure & Bias</h4>
+            </div>
+            ${biasBadge}
+          </div>
+
+          <div class="fs-9 text-muted mb-3">
+            Market Phase: <span class="text-info fw-bold font-monospace">${struct.phase || "ANALYSIS"}</span> &bull; 
+            Confidence: <span class="text-light fw-bold font-monospace">${struct.confidence || 80}%</span>
+          </div>
+
+          <!-- Institutional Liquidity Pools (BSL & SSL) -->
+          <div class="bg-dark-card rounded border border-dark-subtle p-2 mb-3 font-monospace fs-8">
+            <div class="d-flex justify-content-between mb-1 pb-1 border-bottom border-dark-subtle">
+              <span class="text-danger fw-bold"><i class="bi bi-arrow-up-right me-1"></i>NEAREST BSL (Swing High Pool):</span>
+              <span class="text-light fw-bold">$${struct.nearest_bsl ? struct.nearest_bsl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "---"}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span class="text-success fw-bold"><i class="bi bi-arrow-down-right me-1"></i>NEAREST SSL (Swing Low Pool):</span>
+              <span class="text-light fw-bold">$${struct.nearest_ssl ? struct.nearest_ssl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "---"}</span>
+            </div>
+          </div>
+
+          <!-- Recent Swings Structure (HH, HL, LH, LL) -->
+          <div class="mb-3">
+            <div class="fs-9 text-muted mb-1 text-uppercase fw-semibold">Recent Structural Swings:</div>
+            <div class="d-flex flex-wrap gap-1">
+              ${swingsHtml || '<span class="text-muted fs-9">Calculating swing structure...</span>'}
+            </div>
+          </div>
+
+          <!-- Rationale -->
+          <div class="mt-auto p-2 rounded bg-dark-card border border-dark-subtle fs-9 text-secondary">
+            <span class="text-light fw-semibold">Structural Rationale:</span> ${struct.rationale || "Structure evaluated based on swing highs and lows."}
+          </div>
+
+        </div>
+      </div>
+
+      <!-- STEP B CARD: Multi-Timeframe Strategy Confluence Evaluation -->
+      <div class="col-12 col-xl-7">
+        ${hasEntry ? `
+          <!-- HIGH-PROBABILITY CONFIRMED ENTRY CARD -->
+          <div class="hub-result-card entry-confirmed-card p-3 h-100 d-flex flex-column">
+            
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-success text-dark fw-bold font-monospace fs-9">STEP B</span>
+                <span class="badge ${isBuy ? 'bg-success' : 'bg-danger'} text-dark fw-bold font-monospace fs-7">
+                  <i class="bi ${isBuy ? 'bi-graph-up' : 'bi-graph-down'} me-1"></i>${data.entry_zone.action} ORDER CONFIRMED
+                </span>
+              </div>
+              <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace fs-8">
+                <i class="bi bi-shield-check me-1"></i>100% Confluence Met
+              </span>
+            </div>
+
+            <p class="fs-8 text-light mb-3">
+              ${data.status_message}
+            </p>
+
+            <!-- Exact Execution Matrix (Entry, SL, TP1, TP2, RRR) -->
+            <div class="p-3 bg-dark-card rounded border border-dark-subtle mb-3 font-monospace fs-8">
+              <div class="row g-2">
+                <div class="col-6 col-md-4">
+                  <div class="text-muted fs-9">EXACT ENTRY</div>
+                  <div class="text-light fw-bold fs-7">$${data.entry_zone.entry.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="text-danger fs-9">STOP LOSS</div>
+                  <div class="text-danger fw-bold fs-7">$${data.entry_zone.stop_loss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="text-primary-accent fs-9">RISK / REWARD</div>
+                  <div class="text-primary-accent fw-bold fs-7">${data.entry_zone.risk_reward_ratio}</div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="text-success fs-9">TAKE PROFIT 1</div>
+                  <div class="text-success fw-bold fs-7">$${data.entry_zone.take_profit_1.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="text-success fs-9">TAKE PROFIT 2</div>
+                  <div class="text-success fw-bold fs-7">$${data.entry_zone.take_profit_2.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="text-warning fs-9">INVALIDATION</div>
+                  <div class="text-warning fw-bold fs-7">$${data.entry_zone.invalidation_level.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Confluence Checklist -->
+            <div class="mb-3">
+              <div class="fs-9 text-muted mb-1 text-uppercase fw-semibold">Confluence Checklist:</div>
+              ${data.checklist.map(item => `
+                <div class="confluence-list-item">
+                  <span class="fs-8 text-light"><i class="bi bi-check-circle-fill text-success me-2"></i>${item.name}</span>
+                  <span class="confluence-pill passed">${item.description}</span>
+                </div>
+              `).join('')}
+            </div>
+
+            <!-- Telegram Anti-Spam Status & Actions Footer -->
+            <div class="mt-auto pt-2 border-top border-dark-subtle d-flex flex-wrap align-items-center justify-content-between gap-2">
+              <div class="d-flex align-items-center gap-2">
+                ${tgBadge}
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary py-1 px-3 fs-9 font-monospace" id="hubCopyOrderBtn">
+                  <i class="bi bi-clipboard me-1"></i>Copy Execution
+                </button>
+                <button class="btn btn-sm btn-outline-info py-1 px-3 fs-9 font-monospace" id="hubForwardTelegramBtn">
+                  <i class="bi bi-telegram me-1"></i>Telegram
+                </button>
+              </div>
+            </div>
+
+          </div>
+        ` : `
+          <!-- STRICT WAIT STATE CARD -->
+          <div class="hub-result-card wait-state-card p-3 h-100 d-flex flex-column">
+            
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-warning text-dark fw-bold font-monospace fs-9">STEP B</span>
+                <div class="wait-state-badge">
+                  <i class="bi bi-hourglass-split"></i>No valid entry right now, please wait.
+                </div>
+              </div>
+              <span class="badge bg-warning-subtle text-warning border border-warning-subtle font-monospace fs-8">
+                ${data.confluence_score}% / 100% Confluence
+              </span>
+            </div>
+
+            <p class="fs-8 text-secondary mb-3">
+              BotX algorithmic rules require 100% confluence before capital deployment. The current market condition does not meet high-probability risk-reward criteria.
+            </p>
+
+            <!-- Unmet Confluence Wait Reasons -->
+            <div class="wait-reasons-box mb-3">
+              <div class="d-flex align-items-center gap-2 text-warning fw-bold fs-8 mb-2">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <span>Institutional Wait Criteria:</span>
+              </div>
+              <ul class="fs-8 text-muted m-0 ps-3">
+                ${data.wait_reasons.length > 0 ? data.wait_reasons.map(r => `
+                  <li class="mb-1"><span class="text-light">${r}</span></li>
+                `).join('') : '<li class="text-light">Awaiting higher-timeframe alignment and clean mitigation.</li>'}
+              </ul>
+            </div>
+
+            <!-- Confluence Factors Breakdown -->
+            <div class="mb-3">
+              <div class="fs-9 text-muted mb-1 text-uppercase fw-semibold">Checklist Evaluation:</div>
+              ${data.checklist.map(item => `
+                <div class="confluence-list-item">
+                  <span class="fs-8 text-light">
+                    <i class="bi ${item.status === 'PASSED' ? 'bi-check-circle-fill text-success' : 'bi-pause-circle-fill text-warning'} me-2"></i>
+                    ${item.name}
+                  </span>
+                  <span class="confluence-pill ${item.status === 'PASSED' ? 'passed' : 'waiting'}">
+                    ${item.status === 'PASSED' ? 'PASSED' : 'WAITING'}: ${item.description}
+                  </span>
+                </div>
+              `).join('')}
+            </div>
+
+            <!-- Anti-Spam Telegram Notice -->
+            <div class="mt-auto pt-2 border-top border-dark-subtle d-flex align-items-center justify-content-between fs-8">
+              <div class="d-flex align-items-center gap-2 text-muted">
+                <i class="bi bi-shield-lock text-info"></i>
+                <span>Telegram Anti-Spam: Standby (Zero spam sent until 100% verified setup)</span>
+              </div>
+              <span class="anti-spam-badge wait">FILTERED &bull; NO SPAM</span>
+            </div>
+
+          </div>
+        `}
+      </div>
+
+    </div>
+  `;
+
+  // Attach button handlers for valid setup copy & forward
+  if (hasEntry) {
+    const copyBtn = document.getElementById("hubCopyOrderBtn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const orderText = `BOTX ALGO EXECUTION: ${data.entry_zone.action} ${data.symbol} (${data.timeframe}) | Strategy: ${data.strategy_name} | Entry: $${data.entry_zone.entry} | SL: $${data.entry_zone.stop_loss} | TP1: $${data.entry_zone.take_profit_1} | RRR: ${data.entry_zone.risk_reward_ratio}`;
+        navigator.clipboard.writeText(orderText).then(() => {
+          showToast("Order Copied", orderText);
+        });
+      });
+    }
+
+    const fwdBtn = document.getElementById("hubForwardTelegramBtn");
+    if (fwdBtn) {
+      fwdBtn.addEventListener("click", () => {
+        showToast("Telegram Forward", `Setup dispatched to Telegram channel (@IamDeva_bot)`);
+      });
+    }
+  }
+}
+
+/**
+ * Fetch and Render Historical Strategy Evaluations from /api/strategies/history
+ */
+async function fetchHubHistory() {
+  try {
+    const res = await fetch("/api/strategies/history");
+    if (!res.ok) return;
+    const history = await res.json();
+    state.hubAuditLogs = history;
+    renderHubAuditTable(history);
+  } catch (err) {
+    console.error("Failed to fetch strategy audit history:", err);
+  }
+}
+
+/**
+ * Render Audit Log Table Rows
+ */
+function renderHubAuditTable(history) {
+  const tableBody = document.getElementById("hubAuditTableBody");
+  const countBadge = document.getElementById("hubAuditCount");
+  if (!tableBody) return;
+
+  if (countBadge) {
+    countBadge.textContent = `${history.length} runs recorded`;
+  }
+
+  if (history.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="9" class="text-center text-muted py-3">No strategy runs recorded in this session.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tableBody.innerHTML = "";
+  history.forEach(item => {
+    const timeStr = item.evaluated_at ? new Date(item.evaluated_at).toLocaleTimeString() : "Just now";
+    const hasEntry = item.has_entry;
+    const struct = item.step_a_structure || {};
+
+    let biasBadge = `<span class="badge badge-bullish fs-9">BULLISH</span>`;
+    if (struct.directional_bias === "BEARISH") {
+      biasBadge = `<span class="badge badge-bearish fs-9">BEARISH</span>`;
+    } else if (struct.directional_bias === "RANGING") {
+      biasBadge = `<span class="badge badge-ranging fs-9">RANGING</span>`;
+    }
+
+    let verdictBadge = hasEntry
+      ? `<span class="badge bg-success text-dark fw-bold font-monospace">${item.entry_zone ? item.entry_zone.action : 'ENTRY'} CONFIRMED</span>`
+      : `<span class="badge bg-warning-subtle text-warning border border-warning-subtle font-monospace">PLEASE WAIT</span>`;
+
+    let actionText = hasEntry && item.entry_zone
+      ? `Entry: $${item.entry_zone.entry} | SL: $${item.entry_zone.stop_loss} | RRR: ${item.entry_zone.risk_reward_ratio}`
+      : (item.wait_reasons[0] || "Awaiting 100% confluence criteria");
+
+    let tgPill = `<span class="badge bg-dark-subtle text-muted fs-9">STANDBY</span>`;
+    if (item.telegram_status && item.telegram_status.alert_sent) {
+      tgPill = `<span class="badge bg-success-subtle text-success fs-9"><i class="bi bi-telegram me-1"></i>SENT</span>`;
+    } else if (item.telegram_status && item.telegram_status.cooldown_active) {
+      tgPill = `<span class="badge bg-info-subtle text-info fs-9"><i class="bi bi-clock-history me-1"></i>COOLDOWN</span>`;
+    }
+
+    const tr = document.createElement("tr");
+    tr.className = "border-dark-subtle";
+    tr.innerHTML = `
+      <td class="text-secondary">${timeStr}</td>
+      <td class="fw-bold text-light">${item.symbol}</td>
+      <td>${item.strategy_name}</td>
+      <td><span class="badge bg-dark-subtle text-light">${item.timeframe}</span></td>
+      <td>${biasBadge}</td>
+      <td>${verdictBadge}</td>
+      <td class="fw-bold ${hasEntry ? 'text-success' : 'text-warning'}">${item.confluence_score}%</td>
+      <td class="text-truncate text-secondary" style="max-width: 240px;" title="${actionText}">${actionText}</td>
+      <td>${tgPill}</td>
+    `;
+    tableBody.appendChild(tr);
+  });
+}
+
 

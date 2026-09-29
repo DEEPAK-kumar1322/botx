@@ -21,14 +21,19 @@ from loguru import logger
 from src.data.unified_feed import UnifiedMarketFeed
 from src.analysis.structure import MarketStructureAnalyzer, StructureAnalysisResult
 from src.strategies.smc_strategy import strategy_engine, ExecutionSignal
+from src.strategies.strategy_engine import (
+    strategy_manager,
+    StrategyInfo,
+    StrategyAnalysisResponse
+)
 
 # Project Root Directory
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 app = FastAPI(
     title="BotX AI Trading Terminal API",
-    version="1.0.0",
-    description="Lightweight local API connecting BotX terminal frontend with live SMC analysis and strategy execution."
+    version="1.1.0",
+    description="Algorithmic Trading Terminal API with Modular Strategy Hub, On-Demand Structure Analysis, and Anti-Spam Telegram Alerts."
 )
 
 # Enable CORS for local cross-origin development
@@ -55,15 +60,78 @@ class StrategyStatusResponse(BaseModel):
     signals: List[ExecutionSignal]
 
 
+class StrategyActivateRequest(BaseModel):
+    strategy_id: str
+    enable: Optional[bool] = None
+
+
 @app.get("/api/health")
 def get_health():
-    """Health status and strategy state."""
+    """Health status, strategy hub state, and supported pairs."""
     return {
         "status": "online",
-        "service": "BotX Trading Terminal API",
-        "strategy_active": strategy_engine.is_active,
+        "service": "BotX Algorithmic Trading Terminal API",
+        "active_strategy_id": strategy_manager.active_strategy_id,
+        "strategy_active": strategy_manager.is_deployed_active,
+        "available_strategies": [s.id for s in strategy_manager.list_strategies()],
         "supported_pairs": ["BTC/USDT", "ETH/USDT", "XAUUSD", "US100", "XAUJPY", "XAGUSD"]
     }
+
+
+# ============================================================================
+# Strategy Hub Endpoints
+# ============================================================================
+
+@app.get("/api/strategies", response_model=List[StrategyInfo])
+def get_strategies():
+    """Retrieve all available custom trading strategies."""
+    return strategy_manager.list_strategies()
+
+
+@app.post("/api/strategies/activate", response_model=StrategyInfo)
+def activate_strategy(req: StrategyActivateRequest):
+    """Select active strategy and set deployment state."""
+    logger.info(f"API: Activating strategy {req.strategy_id} (enable={req.enable})")
+    info = strategy_manager.set_active_strategy(req.strategy_id, enable=req.enable)
+    return info
+
+
+@app.post("/api/strategies/analyze", response_model=StrategyAnalysisResponse)
+def run_strategy_analysis_endpoint(
+    symbol: str = Query("BTC/USDT", description="Asset symbol (e.g. BTC/USDT, XAUUSD, US100)"),
+    timeframe: str = Query("15m", description="Primary execution timeframe"),
+    strategy_id: Optional[str] = Query(None, description="Optional strategy override")
+):
+    """
+    Run Strategy Analysis:
+    - Step A: Base Market Structure & Bias analysis.
+    - Step B: Multi-timeframe strategy evaluation with strict confluence.
+    Returns:
+    - High-probability entry zones (Entry, SL, TP1, TP2) if 100% confluence met.
+    - Clear wait state ('No valid entry right now, please wait.') if criteria < 100%.
+    - Anti-spam cooldown Telegram alert dispatch.
+    """
+    logger.info(f"API: Triggering Strategy Analysis for {symbol} ({timeframe}) with strategy '{strategy_id or strategy_manager.active_strategy_id}'")
+    try:
+        result = strategy_manager.run_strategy_analysis(
+            symbol=symbol,
+            timeframe=timeframe,
+            strategy_id=strategy_id
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Strategy analysis failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Strategy analysis failed: {str(e)}"
+        )
+
+
+@app.get("/api/strategies/history", response_model=List[StrategyAnalysisResponse])
+def get_strategy_history():
+    """Retrieve audit history of recent strategy evaluations."""
+    return strategy_manager.history[:20]
+
 
 
 @app.get("/api/analyze", response_model=StructureAnalysisResult)

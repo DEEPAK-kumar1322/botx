@@ -9,7 +9,8 @@ Formats and dispatches alerts for:
 Directly uses the Telegram Bot API via requests.
 """
 
-from typing import Dict, Any, List, Optional
+import time
+from typing import Dict, Any, List, Optional, Tuple
 import requests
 from loguru import logger
 
@@ -18,22 +19,57 @@ from src.analysis.models import BiasType, FairValueGap, OrderBlock
 
 
 class TelegramAlertSender:
-    """Dispatches formatted Smart Money Concepts (SMC) alerts to Telegram."""
+    """
+    Dispatches formatted trading strategy and SMC alerts to Telegram.
+    Includes state-tracker anti-spam cooldown protection to prevent duplicate alert spam.
+    """
 
-    def __init__(self, bot_token: Optional[str] = None, chat_id: Optional[str] = None):
+    def __init__(self, bot_token: Optional[str] = None, chat_id: Optional[str] = None, cooldown_seconds: int = 1800):
         self.bot_token = bot_token or config.telegram_bot_token
         self.chat_id = chat_id or config.telegram_chat_id
         self.base_url = f"https://api.telegram.org/bot{self.bot_token}" if self.bot_token else None
+        self.cooldown_seconds = cooldown_seconds
+        # Setup State Tracker: Key = fingerprint, Value = timestamp of last dispatch
+        self._dispatched_setups: Dict[str, float] = {}
 
     @property
     def is_ready(self) -> bool:
         """Verify bot credentials are configured."""
         return bool(self.bot_token and self.chat_id)
 
+    def get_setup_fingerprint(
+        self,
+        symbol: str,
+        strategy_id: str,
+        action: str,
+        price: float,
+        timeframe: str
+    ) -> str:
+        """Generate normalized fingerprint for a trade setup to track its lifecycle."""
+        # Price bucketed to roughly 0.25% to prevent spam on minor tick fluctuations
+        bucket_factor = 10.0 if price > 1000 else 1.0
+        price_bucket = round(price / bucket_factor) * bucket_factor
+        return f"{symbol.upper()}_{strategy_id.lower()}_{action.upper()}_{price_bucket}_{timeframe.lower()}"
+
+    def is_in_cooldown(self, fingerprint: str) -> Tuple[bool, float]:
+        """Check if setup fingerprint is currently in cooldown window. Returns (is_cooling, remaining_seconds)."""
+        now = time.time()
+        last_time = self._dispatched_setups.get(fingerprint)
+        if last_time is not None:
+            elapsed = now - last_time
+            if elapsed < self.cooldown_seconds:
+                remaining = self.cooldown_seconds - elapsed
+                return True, remaining
+        return False, 0.0
+
+    def record_dispatched_setup(self, fingerprint: str) -> None:
+        """Record dispatched setup timestamp in the state tracker."""
+        self._dispatched_setups[fingerprint] = time.time()
+
     def send_raw_message(self, html_text: str) -> bool:
         """Send formatted HTML message to the configured Telegram chat."""
         if not self.is_ready:
-            logger.warning("[Telegram Alert] Bot token or Chat ID missing. Running in simulated mode.")
+            logger.warning("[Telegram Alert] Bot token or Chat ID missing. Simulated dispatch mode.")
             return False
 
         url = f"{self.base_url}/sendMessage"
@@ -56,6 +92,74 @@ class TelegramAlertSender:
         except Exception as e:
             logger.error(f"Error connecting to Telegram API: {e}")
             return False
+
+    def send_strategy_execution_alert(
+        self,
+        symbol: str,
+        strategy_name: str,
+        strategy_id: str,
+        action: str,
+        entry_price: float,
+        stop_loss: float,
+        take_profit_1: float,
+        take_profit_2: float,
+        risk_reward_ratio: str,
+        timeframe: str,
+        confluence_score: int,
+        trigger_reason: str,
+        directional_bias: str,
+        force: bool = False
+    ) -> Tuple[bool, str]:
+        """
+        Dispatches a high-probability strategy execution signal card to Telegram.
+        Protected by anti-spam state-tracker cooldown.
+        """
+        fingerprint = self.get_setup_fingerprint(
+            symbol=symbol,
+            strategy_id=strategy_id,
+            action=action,
+            price=entry_price,
+            timeframe=timeframe
+        )
+
+        is_cooling, remaining = self.is_in_cooldown(fingerprint)
+        if is_cooling and not force:
+            logger.info(
+                f"[Telegram Cooldown] Alert suppressed for {fingerprint} "
+                f"({int(remaining)}s remaining in cooldown window)."
+            )
+            return False, f"Cooldown active: Alert already sent ({int(remaining)}s left)"
+
+        action_icon = "🟢 <b>BUY / LONG</b>" if action.upper() == "BUY" else "🔴 <b>SELL / SHORT</b>"
+        bias_icon = "📈" if directional_bias.upper() == "BULLISH" else ("📉" if directional_bias.upper() == "BEARISH" else "⚖️")
+
+        msg = (
+            f"⚡ <b>BOTX STRATEGY EXECUTION SIGNAL</b> ⚡\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🪙 <b>Asset</b>: <code>{symbol}</code>\n"
+            f"⏱️ <b>Timeframe</b>: <code>{timeframe.upper()}</code>\n"
+            f"🧩 <b>Strategy</b>: <b>{strategy_name}</b>\n"
+            f"🎯 <b>Action</b>: {action_icon}\n"
+            f"🧭 <b>Structure Bias</b>: <b>{directional_bias}</b> {bias_icon}\n"
+            f"💎 <b>Confluence Score</b>: <code>{confluence_score}% HIGH PROBABILITY</code>\n\n"
+            f"📍 <b>PRECISION ORDER LEVELS</b>:\n"
+            f"   • <b>Exact Entry</b>: <code>${entry_price:,.2f}</code>\n"
+            f"   • <b>Stop Loss (SL)</b>: <code>${stop_loss:,.2f}</code>\n"
+            f"   • <b>Take Profit 1</b>: <code>${take_profit_1:,.2f}</code>\n"
+            f"   • <b>Take Profit 2</b>: <code>${take_profit_2:,.2f}</code>\n"
+            f"   • <b>Risk:Reward Ratio</b>: <b>{risk_reward_ratio}</b>\n\n"
+            f"🔍 <b>Trigger Confluence</b>:\n"
+            f"   <i>{trigger_reason}</i>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🛡️ <i>Strict confluence verified by BotX Algorithmic Engine</i>\n"
+            f"⏰ <code>{time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}</code>"
+        )
+
+        sent = self.send_raw_message(msg)
+        if sent or not self.is_ready:
+            self.record_dispatched_setup(fingerprint)
+            return True, "Alert dispatched successfully to Telegram"
+        return False, "Failed to deliver Telegram message"
 
     def send_fvg_alert(self, symbol: str, timeframe: str, fvg: FairValueGap, current_price: float) -> bool:
         """Format and send a Fair Value Gap (FVG) alert message."""
