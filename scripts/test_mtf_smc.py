@@ -35,14 +35,15 @@ from loguru import logger
 logger.remove()
 logger.add(sys.stderr, format="<dim>{time:HH:mm:ss}</dim> | <level>{level: <8}</level> | {message}", level="INFO")
 
-from src.data.crypto_feed import CryptoDataFeed
+from src.data.base import MarketDataFeed
+from src.data.unified_feed import UnifiedMarketFeed
 from src.analysis.smc import SMCAnalyzer
 from src.analysis.models import BiasType
 
 console = Console(force_terminal=True, legacy_windows=False)
 
 
-def analyze_timeframe(feed: CryptoDataFeed, symbol: str, timeframe: str, limit: int = 60):
+def analyze_timeframe(feed: MarketDataFeed, symbol: str, timeframe: str, limit: int = 60):
     """Fetch candles and analyze FVGs & Order Blocks for a given timeframe."""
     console.rule(f"[bold cyan]Timeframe Analysis: {timeframe.upper()} ({symbol})[/bold cyan]")
     
@@ -167,22 +168,13 @@ def main():
         )
     )
 
-    # Initialize data feed
-    feed = None
-    for ex in [args.exchange, "kraken", "coinbase"]:
-        try:
-            cand_feed = CryptoDataFeed(exchange_id=ex)
-            target_symbol = args.symbol if ex == "binance" else ("BTC/USD" if "USD" in args.symbol else args.symbol)
-            cand_feed.fetch_ticker(target_symbol)
-            feed = cand_feed
-            args.symbol = target_symbol
-            console.print(f"[bold green][OK] Connected to {ex.upper()} data feed.[/bold green]\n")
-            break
-        except Exception as e:
-            console.print(f"[yellow][!] Could not connect to {ex}: {e}. Retrying fallback...[/yellow]")
-
-    if not feed:
-        console.print("[bold red][FAIL] Unable to connect to market data feed.[/bold red]")
+    # Initialize multi-asset unified data feed
+    try:
+        feed = UnifiedMarketFeed(crypto_exchange=args.exchange)
+        ticker = feed.fetch_ticker(args.symbol)
+        console.print(f"[bold green][OK] Connected to feed for {args.symbol}! Current Price: ${ticker.last_price:,.2f} (Source: {ticker.source})[/bold green]\n")
+    except Exception as e:
+        console.print(f"[bold red][FAIL] Unable to connect to market data feed for {args.symbol}: {e}[/bold red]")
         sys.exit(1)
 
     # Run Analysis on 15m and 1h

@@ -103,10 +103,10 @@
           </div>
           <div class="collapse show" id="cryptoList" data-bs-parent="#marketsAccordion">
             <div class="list-group list-group-flush pt-1">
-              <button class="list-group-item list-group-item-action asset-item active d-flex justify-content-between align-items-center" data-symbol="BINANCE:BTCUSDT" data-display="BTC/USDT" data-type="crypto">
+              <button class="list-group-item list-group-item-action asset-item active d-flex justify-content-between align-items-center" data-symbol="BINANCE:BTCUSDT" data-display="BTC/USDT" data-type="crypto" data-price="83,845.00" data-change="+0.82%">
                 <div class="d-flex flex-column text-start">
                   <span class="fw-bold fs-7">BTC/USDT</span>
-                  <span class="fs-9 text-muted font-monospace">Bitcoin</span>
+                  <span class="fs-9 text-muted font-monospace">Bitcoin / Tether</span>
                 </div>
                 <div class="text-end font-monospace">
                   <div class="fs-7 fw-semibold">$83,845.00</div>
@@ -114,21 +114,21 @@
                 </div>
               </button>
 
-              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:ETHUSDT" data-display="ETH/USDT" data-type="crypto">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:ETHUSDT" data-display="ETH/USDT" data-type="crypto" data-price="2,692.43" data-change="+1.45%">
                 <div class="d-flex flex-column text-start">
                   <span class="fw-bold fs-7">ETH/USDT</span>
-                  <span class="fs-9 text-muted font-monospace">Ethereum</span>
+                  <span class="fs-9 text-muted font-monospace">Ethereum / Tether</span>
                 </div>
                 <div class="text-end font-monospace">
-                  <div class="fs-7 fw-semibold">$3,248.50</div>
+                  <div class="fs-7 fw-semibold">$2,692.43</div>
                   <div class="fs-9 text-success">+1.45%</div>
                 </div>
               </button>
 
-              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:SOLUSDT" data-display="SOL/USDT" data-type="crypto">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:SOLUSDT" data-display="SOL/USDT" data-type="crypto" data-price="194.20" data-change="-0.34%">
                 <div class="d-flex flex-column text-start">
                   <span class="fw-bold fs-7">SOL/USDT</span>
-                  <span class="fs-9 text-muted font-monospace">Solana</span>
+                  <span class="fs-9 text-muted font-monospace">Solana / Tether</span>
                 </div>
                 <div class="text-end font-monospace">
                   <div class="fs-7 fw-semibold">$194.20</div>
@@ -139,7 +139,101 @@
           </div>
         </div>
 
-        <!-- 2. Forex Watchlist -->
+        <!-- 2. Metals & Commodities Watchlist -->
+        <div class="market-category-card mb-2">
+          <div class="category-header d-flex align-items-center justify-content-between p-2 rounded" data-bs-toggle="collapse" data-bs-target="#metalsList" aria-expanded="true">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-gem text-warning"></i>
+              <span class="fw-semibold fs-7">Metals & Commodities</span>
+            </div>
+            <i class="bi bi-chevron-down fs-8 text-muted chevron-icon"></i>
+          </div>
+          <div class="collapse show" id="metalsList" data-bs-parent="#marketsAccordion">
+            <div class="list-group list-group-flush pt-1">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="OANDA:XAUUSD" data-display="XAUUSD" data-type="metals" data-price="4,174.50" data-change="+0.52%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">XAUUSD</span>
+                  <span class="fs-9 text-muted font-monospace">Gold / US Dollar</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$4,174.50</div>
+                  <div class="fs-9 text-success">+0.52%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="OANDA:XAGUSD" data-display="XAGUSD" data-type="metals" data-price="61.18" data-change="+0.88%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">XAGUSD</span>
+                  <span class="fs-9 text-muted font-monospace">Silver / US Dollar</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$61.18</div>
+                  <div class="fs-9 text-success">+0.88%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="OANDA:XAUJPY" data-display="XAUJPY" data-type="metals" data-price="656,690" data-change="+0.45%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">XAUJPY</span>
+                  <span class="fs-9 text-muted font-monospace">Gold / Japanese Yen</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">¥656,690</div>
+                  <div class="fs-9 text-success">+0.45%</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Indices Watchlist (US100 + Indian Indices) -->
+        <div class="market-category-card mb-2">
+          <div class="category-header d-flex align-items-center justify-content-between p-2 rounded" data-bs-toggle="collapse" data-bs-target="#indicesList" aria-expanded="false">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-speedometer2 text-danger"></i>
+              <span class="fw-semibold fs-7">Indices</span>
+            </div>
+            <i class="bi bi-chevron-down fs-8 text-muted chevron-icon"></i>
+          </div>
+          <div class="collapse" id="indicesList" data-bs-parent="#marketsAccordion">
+            <div class="list-group list-group-flush pt-1">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="CAPITALCOM:US100" data-display="US100" data-type="indices" data-price="30,498.00" data-change="+0.74%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">US100</span>
+                  <span class="fs-9 text-muted font-monospace">Nasdaq 100 Index</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">30,498.00</div>
+                  <div class="fs-9 text-success">+0.74%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="NSE:NIFTY" data-display="NIFTY 50" data-type="indices" data-price="25,840.10" data-change="+0.65%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">NIFTY 50</span>
+                  <span class="fs-9 text-muted font-monospace">NSE India Index</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">25,840.10</div>
+                  <div class="fs-9 text-success">+0.65%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="NSE:BANKNIFTY" data-display="BANK NIFTY" data-type="indices" data-price="53,920.40" data-change="+0.92%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">BANK NIFTY</span>
+                  <span class="fs-9 text-muted font-monospace">NSE Bank Index</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">53,920.40</div>
+                  <div class="fs-9 text-success">+0.92%</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Forex Watchlist -->
         <div class="market-category-card mb-2">
           <div class="category-header d-flex align-items-center justify-content-between p-2 rounded" data-bs-toggle="collapse" data-bs-target="#forexList" aria-expanded="false">
             <div class="d-flex align-items-center gap-2">
@@ -150,7 +244,7 @@
           </div>
           <div class="collapse" id="forexList" data-bs-parent="#marketsAccordion">
             <div class="list-group list-group-flush pt-1">
-              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="FX:EURUSD" data-display="EUR/USD" data-type="forex">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="FX:EURUSD" data-display="EUR/USD" data-type="forex" data-price="1.0842" data-change="+0.12%">
                 <div class="d-flex flex-column text-start">
                   <span class="fw-bold fs-7">EUR/USD</span>
                   <span class="fs-9 text-muted font-monospace">Euro / Dollar</span>
@@ -161,7 +255,7 @@
                 </div>
               </button>
 
-              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="FX:GBPUSD" data-display="GBP/USD" data-type="forex">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="FX:GBPUSD" data-display="GBP/USD" data-type="forex" data-price="1.2985" data-change="-0.08%">
                 <div class="d-flex flex-column text-start">
                   <span class="fw-bold fs-7">GBP/USD</span>
                   <span class="fs-9 text-muted font-monospace">Pound / Dollar</span>
@@ -172,7 +266,7 @@
                 </div>
               </button>
 
-              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="FX:USDJPY" data-display="USD/JPY" data-type="forex">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="FX:USDJPY" data-display="USD/JPY" data-type="forex" data-price="152.40" data-change="+0.22%">
                 <div class="d-flex flex-column text-start">
                   <span class="fw-bold fs-7">USD/JPY</span>
                   <span class="fs-9 text-muted font-monospace">Dollar / Yen</span>
@@ -180,53 +274,6 @@
                 <div class="text-end font-monospace">
                   <div class="fs-7 fw-semibold">152.40</div>
                   <div class="fs-9 text-success">+0.22%</div>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. Indian Markets Watchlist -->
-        <div class="market-category-card mb-2">
-          <div class="category-header d-flex align-items-center justify-content-between p-2 rounded" data-bs-toggle="collapse" data-bs-target="#indianList" aria-expanded="false">
-            <div class="d-flex align-items-center gap-2">
-              <i class="bi bi-graph-up-arrow text-success"></i>
-              <span class="fw-semibold fs-7">Indian Markets</span>
-            </div>
-            <i class="bi bi-chevron-down fs-8 text-muted chevron-icon"></i>
-          </div>
-          <div class="collapse" id="indianList" data-bs-parent="#marketsAccordion">
-            <div class="list-group list-group-flush pt-1">
-              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="NSE:NIFTY" data-display="NIFTY 50" data-type="indices">
-                <div class="d-flex flex-column text-start">
-                  <span class="fw-bold fs-7">NIFTY 50</span>
-                  <span class="fs-9 text-muted font-monospace">Index</span>
-                </div>
-                <div class="text-end font-monospace">
-                  <div class="fs-7 fw-semibold">25,840.10</div>
-                  <div class="fs-9 text-success">+0.65%</div>
-                </div>
-              </button>
-
-              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="NSE:BANKNIFTY" data-display="BANK NIFTY" data-type="indices">
-                <div class="d-flex flex-column text-start">
-                  <span class="fw-bold fs-7">BANK NIFTY</span>
-                  <span class="fs-9 text-muted font-monospace">Index</span>
-                </div>
-                <div class="text-end font-monospace">
-                  <div class="fs-7 fw-semibold">53,920.40</div>
-                  <div class="fs-9 text-success">+0.92%</div>
-                </div>
-              </button>
-
-              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="NSE:RELIANCE" data-display="RELIANCE" data-type="equity">
-                <div class="d-flex flex-column text-start">
-                  <span class="fw-bold fs-7">RELIANCE</span>
-                  <span class="fs-9 text-muted font-monospace">Equities</span>
-                </div>
-                <div class="text-end font-monospace">
-                  <div class="fs-7 fw-semibold">₹2,980.00</div>
-                  <div class="fs-9 text-danger">-0.18%</div>
                 </div>
               </button>
             </div>
@@ -312,6 +359,17 @@
           <button type="button" class="btn btn-outline-secondary" data-filter="FVG">FVG</button>
           <button type="button" class="btn btn-outline-secondary" data-filter="OB">OB</button>
           <button type="button" class="btn btn-outline-secondary" data-filter="active">Active</button>
+        </div>
+
+        <!-- Active Asset Context Indicator -->
+        <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top border-dark-subtle fs-8">
+          <div class="d-flex align-items-center gap-1">
+            <span class="text-muted">Viewing:</span>
+            <span class="badge bg-dark-subtle text-primary-accent border border-primary-subtle font-monospace" id="currentAlertAssetBadge">BTC/USDT</span>
+          </div>
+          <button class="btn btn-sm btn-link text-decoration-none text-info fs-9 p-0" id="toggleAssetScopeBtn">
+            <i class="bi bi-funnel me-1"></i><span id="scopeBtnText">Show All Assets</span>
+          </button>
         </div>
       </div>
 

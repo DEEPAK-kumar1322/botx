@@ -36,7 +36,7 @@ from loguru import logger
 logger.remove()
 logger.add(sys.stderr, format="<dim>{time:HH:mm:ss}</dim> | <level>{level: <8}</level> | {message}", level="INFO")
 
-from src.data.crypto_feed import CryptoDataFeed
+from src.data.unified_feed import UnifiedMarketFeed
 from scripts.test_mtf_smc import analyze_timeframe
 from src.notifications.telegram_alerts import TelegramAlertSender
 
@@ -56,22 +56,13 @@ def run_and_notify(symbol: str = "BTC/USDT", exchange: str = "binance", limit: i
     )
 
     # 1. Connect to Market Feed
-    console.print(f"[dim][*] Connecting to {exchange.upper()} market feed...[/dim]")
-    feed = None
-    for ex in [exchange, "kraken", "coinbase"]:
-        try:
-            cand_feed = CryptoDataFeed(exchange_id=ex)
-            target_symbol = symbol if ex == "binance" else ("BTC/USD" if "USD" in symbol else symbol)
-            cand_feed.fetch_ticker(target_symbol)
-            feed = cand_feed
-            symbol = target_symbol
-            console.print(f"[bold green][OK] Connected to {ex.upper()}![/bold green]\n")
-            break
-        except Exception as e:
-            console.print(f"[yellow][!] Connection to {ex} failed: {e}. Retrying...[/yellow]")
-
-    if not feed:
-        console.print("[bold red][FAIL] Unable to connect to exchange feed.[/bold red]")
+    console.print(f"[dim][*] Connecting to multi-asset market feed for {symbol}...[/dim]")
+    try:
+        feed = UnifiedMarketFeed(crypto_exchange=exchange)
+        ticker = feed.fetch_ticker(symbol)
+        console.print(f"[bold green][OK] Connected! Current {symbol} Price: ${ticker.last_price:,.2f} ({ticker.source})[/bold green]\n")
+    except Exception as e:
+        console.print(f"[bold red][FAIL] Unable to connect to exchange feed for {symbol}: {e}[/bold red]")
         sys.exit(1)
 
     # 2. Run Multi-Timeframe Analysis
