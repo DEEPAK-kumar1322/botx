@@ -20,5 +20,10 @@ class EngineConfig(BaseModel):
     default_timeframe: str = Field(default_factory=lambda: os.getenv("DEFAULT_TIMEFRAME", "1m"))
     log_level: str = Field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
 
+    # Telegram Notification Settings
+    telegram_bot_token: Optional[str] = Field(default_factory=lambda: os.getenv("TELEGRAM_BOT_TOKEN", ""))
+    telegram_chat_id: Optional[str] = Field(default_factory=lambda: os.getenv("TELEGRAM_CHAT_ID", ""))
+    telegram_enabled: bool = Field(default_factory=lambda: os.getenv("TELEGRAM_ENABLED", "true").lower() in ("true", "1", "yes"))
+
 
 config = EngineConfig()
