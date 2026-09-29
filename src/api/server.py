@@ -201,12 +201,17 @@ def evaluate_strategy_signal(
     timeframe: str = Query("15m", description="Timeframe interval")
 ):
     """
-    Evaluate SMC logic on live data and return an exact Entry/Exit execution signal.
+    Evaluate SMC logic on live data with Global Sniper Mode validation.
     """
-    logger.info(f"API: Evaluating live SMC strategy for {symbol} ({timeframe})")
+    logger.info(f"API: Evaluating live SMC strategy with Sniper Mode for {symbol} ({timeframe})")
     signal = strategy_engine.evaluate(symbol=symbol, timeframe=timeframe)
     if not signal:
-        return {"status": "no_setup", "message": f"No high-probability SMC entry trigger for {symbol} on {timeframe} currently."}
+        return {
+            "status": "no_setup",
+            "message": "No valid entry right now, please wait.",
+            "sniper_mode_active": True,
+            "quality_over_quantity": True
+        }
 
     return {"status": "signal_generated", "signal": signal}
 

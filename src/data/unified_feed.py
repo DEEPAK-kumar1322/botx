@@ -132,8 +132,9 @@ class UnifiedMarketFeed(MarketDataFeed):
 
         elif asset_type == "xaujpy":
             # Combine GC=F and USDJPY=X candles
-            yf_interval = "15m" if timeframe == "15m" else ("1h" if timeframe == "1h" else "1d")
-            period = "5d" if yf_interval in ["1m", "5m", "15m"] else "1mo"
+            is_4h = timeframe in ["4h", "240"]
+            yf_interval = "1h" if is_4h else ("15m" if timeframe in ["15m", "15"] else ("1h" if timeframe in ["1h", "60"] else "1d"))
+            period = "30d" if is_4h else ("5d" if yf_interval in ["1m", "5m", "15m"] else "1mo")
             df_gold = yf.Ticker("GC=F").history(period=period, interval=yf_interval)
             df_jpy = yf.Ticker("USDJPY=X").history(period=period, interval=yf_interval)
 
@@ -142,6 +143,16 @@ class UnifiedMarketFeed(MarketDataFeed):
 
             # Merge and multiply prices
             df_merged = df_gold.join(df_jpy[["Close"]].rename(columns={"Close": "Rate_jpy"}), how="inner").dropna()
+            if is_4h:
+                df_merged = df_merged.resample('4h').agg({
+                    'Open': 'first',
+                    'High': 'max',
+                    'Low': 'min',
+                    'Close': 'last',
+                    'Volume': 'sum',
+                    'Rate_jpy': 'last'
+                }).dropna()
+
             candles: List[CandleData] = []
             for idx, row in df_merged.tail(limit).iterrows():
                 rate = float(row["Rate_jpy"])
@@ -158,13 +169,23 @@ class UnifiedMarketFeed(MarketDataFeed):
         else:
             sym_clean = symbol.upper().replace("/", "").replace(" ", "").replace("-", "")
             yf_ticker = self.YFINANCE_MAP.get(sym_clean, self.YFINANCE_MAP.get(symbol.upper(), symbol))
-            yf_interval = "15m" if timeframe in ["15m", "15"] else ("1h" if timeframe in ["1h", "60"] else "1d")
-            period = "5d" if yf_interval in ["1m", "5m", "15m"] else "1mo"
+            is_4h = timeframe in ["4h", "240"]
+            yf_interval = "1h" if is_4h else ("15m" if timeframe in ["15m", "15"] else ("1h" if timeframe in ["1h", "60"] else "1d"))
+            period = "30d" if is_4h else ("5d" if yf_interval in ["1m", "5m", "15m"] else "1mo")
 
-            logger.debug(f"Fetching candles for {symbol} ({yf_ticker}) with interval={yf_interval}")
+            logger.debug(f"Fetching candles for {symbol} ({yf_ticker}) with interval={yf_interval} (is_4h={is_4h})")
             df = yf.Ticker(yf_ticker).history(period=period, interval=yf_interval)
             if df.empty:
                 df = yf.Ticker(yf_ticker).history(period="1mo", interval=yf_interval)
+
+            if is_4h and not df.empty:
+                df = df.resample('4h').agg({
+                    'Open': 'first',
+                    'High': 'max',
+                    'Low': 'min',
+                    'Close': 'last',
+                    'Volume': 'sum'
+                }).dropna()
 
             candles: List[CandleData] = []
             for idx, row in df.tail(limit).iterrows():

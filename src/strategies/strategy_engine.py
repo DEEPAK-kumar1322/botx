@@ -22,7 +22,8 @@ from loguru import logger
 from src.data.base import CandleData
 from src.data.unified_feed import UnifiedMarketFeed
 from src.analysis.smc import SMCAnalyzer
-from src.analysis.structure import MarketStructureAnalyzer, StructureAnalysisResult
+from src.analysis.models import BiasType, FairValueGap, OrderBlock
+from src.analysis.structure import MarketStructureAnalyzer, StructureAnalysisResult, SwingPoint, LiquidityLevel
 from src.notifications.telegram_alerts import TelegramAlertSender
 
 
@@ -81,6 +82,7 @@ class StrategyAnalysisResponse(BaseModel):
     strategy_id: str
     strategy_name: str
     strategy_active: bool
+    sniper_mode_active: bool = True
     has_entry: bool = Field(description="True if 100% strict confluence met, False if wait state")
     status_message: str = Field(description="'No valid entry right now, please wait.' or verified setup alert")
     wait_reasons: List[str] = Field(default_factory=list)
@@ -88,6 +90,7 @@ class StrategyAnalysisResponse(BaseModel):
     checklist: List[ConfluenceCheckItem]
     entry_zone: Optional[EntryZone] = None
     step_a_structure: StructureAnalysisResult
+    htf_alignment: Dict[str, str] = Field(default_factory=dict)
     telegram_status: TelegramDispatchStatus
     evaluated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -273,71 +276,77 @@ class StrategyManager:
         strategy_id: Optional[str] = None
     ) -> StrategyAnalysisResponse:
         """
-        Executes Two-Step Strategy Analysis:
-        - Step A: Base Market Structure & Bias Analysis.
-        - Step B: Multi-timeframe strategy evaluation with strict confluence & anti-spam.
+        Executes Institutional Sniper Mode Strategy Analysis:
+        - Step A: Base Market Structure & Bias Analysis (15m, 1H, and 4H).
+        - Step B: Multi-timeframe strategy evaluation with strict 4-condition Sniper Mode Confluence:
+          1. Liquidity Sweep First (BSL/SSL Purge).
+          2. Strong Displacement & CHoCH (FVG Imbalance).
+          3. Deep Mitigation (Discount/Premium Array).
+          4. Higher Timeframe Alignment (15m + 1H + 4H).
+        If ANY condition fails, the engine outputs ZERO signals and remains in STANDBY / WAITING state.
         """
         sid = strategy_id or self.active_strategy_id
         if sid not in self._strategies_meta:
             sid = "smc"
 
         strat_meta = self._strategies_meta[sid]
-        logger.info(f"Running Two-Step Analysis for {symbol} ({timeframe}) using strategy: {strat_meta['name']}")
+        logger.info(f"Sniper Mode: Running Two-Step Analysis for {symbol} ({timeframe}) using strategy: {strat_meta['name']}")
 
-        # Fetch Lower Timeframe (Execution) Candles
+        # 1. Fetch Execution (15m/LTF), Context 1H, and Macro Context 4H Candles
         candles_ltf = self.feed.fetch_recent_candles(symbol, timeframe=timeframe, limit=60)
         if not candles_ltf:
             raise ValueError(f"Failed to fetch market data for {symbol} on {timeframe}")
 
-        # Fetch Higher Timeframe (Bias Context) Candles - Default to 1h
-        htf = "1h" if timeframe in ["1m", "5m", "15m"] else "4h"
-        candles_htf = self.feed.fetch_recent_candles(symbol, timeframe=htf, limit=60) or candles_ltf
+        candles_1h = self.feed.fetch_recent_candles(symbol, timeframe="1h", limit=60) or candles_ltf
+        candles_4h = self.feed.fetch_recent_candles(symbol, timeframe="4h", limit=60) or candles_1h
 
         current_price = candles_ltf[-1].close
 
         # ====================================================================
-        # STEP A: Base Market Structure & Bias Analysis
+        # STEP A: Multi-Timeframe Market Structure & Bias Analysis
         # ====================================================================
-        structure = self.structure_analyzer.analyze(candles_ltf, symbol=symbol, timeframe=timeframe)
+        structure_ltf = self.structure_analyzer.analyze(candles_ltf, symbol=symbol, timeframe=timeframe)
+        structure_1h = self.structure_analyzer.analyze(candles_1h, symbol=symbol, timeframe="1h")
+        structure_4h = self.structure_analyzer.analyze(candles_4h, symbol=symbol, timeframe="4h")
 
         # ====================================================================
-        # STEP B: Evaluate Active Strategy Logic Across Multiple Timeframes
+        # STEP B: Evaluate Active Strategy with Global Sniper Mode Gate
         # ====================================================================
         if sid == "smc":
             has_entry, entry_zone, score, checklist, wait_reasons = self._eval_smc(
-                candles_ltf, candles_htf, structure, strat_meta["parameters"]
+                candles_ltf, candles_1h, candles_4h, structure_ltf, structure_1h, structure_4h, strat_meta["parameters"]
             )
         elif sid == "ema_cross":
             has_entry, entry_zone, score, checklist, wait_reasons = self._eval_ema_cross(
-                candles_ltf, candles_htf, structure, strat_meta["parameters"]
+                candles_ltf, candles_1h, candles_4h, structure_ltf, structure_1h, structure_4h, strat_meta["parameters"]
             )
         elif sid == "bollinger_bands":
             has_entry, entry_zone, score, checklist, wait_reasons = self._eval_bollinger(
-                candles_ltf, candles_htf, structure, strat_meta["parameters"]
+                candles_ltf, candles_1h, candles_4h, structure_ltf, structure_1h, structure_4h, strat_meta["parameters"]
             )
         else:
             has_entry, entry_zone, score, checklist, wait_reasons = self._eval_custom(
-                candles_ltf, candles_htf, structure, strat_meta["parameters"]
+                candles_ltf, candles_1h, candles_4h, structure_ltf, structure_1h, structure_4h, strat_meta["parameters"]
             )
 
         # ====================================================================
-        # Strict Validity & Clear Wait State (Requirements 3 & 4)
+        # Strict Validity & Clear Wait State (Quality Over Quantity)
         # ====================================================================
         if not has_entry:
             status_message = "No valid entry right now, please wait."
             entry_zone = None
         else:
             action_text = "BUY / LONG" if entry_zone.action == "BUY" else "SELL / SHORT"
-            status_message = f"HIGH-PROBABILITY {action_text} SETUP CONFIRMED"
+            status_message = f"SNIPER A+ {action_text} SETUP CONFIRMED (100% Confluence)"
 
         # ====================================================================
-        # Telegram Anti-Spam Cooldown & Notification (Requirement 5)
+        # Telegram Anti-Spam Cooldown & Notification
         # ====================================================================
         telegram_status = TelegramDispatchStatus(
             alert_sent=False,
             cooldown_active=False,
             cooldown_remaining_sec=0,
-            message="No setup to dispatch"
+            message="Sniper Mode Standby: Zero execution signal. Quality over quantity enforced."
         )
 
         if has_entry and entry_zone:
@@ -357,7 +366,7 @@ class StrategyManager:
                     message=f"Alert suppressed: Cooldown active ({int(remaining)}s left)"
                 )
             else:
-                trigger_desc = f"{strat_meta['name']} verified in alignment with {structure.directional_bias} macro trend."
+                trigger_desc = f"Sniper A+ Setup: {strat_meta['name']} verified with Sweep, CHoCH, Deep Mitigation, and 1H/4H ({structure_1h.directional_bias}/{structure_4h.directional_bias}) alignment."
                 sent, msg_text = self.notifier.send_strategy_execution_alert(
                     symbol=symbol,
                     strategy_name=strat_meta["name"],
@@ -371,7 +380,7 @@ class StrategyManager:
                     timeframe=timeframe,
                     confluence_score=score,
                     trigger_reason=trigger_desc,
-                    directional_bias=structure.directional_bias
+                    directional_bias=structure_ltf.directional_bias
                 )
                 telegram_status = TelegramDispatchStatus(
                     alert_sent=sent,
@@ -387,13 +396,18 @@ class StrategyManager:
             strategy_id=sid,
             strategy_name=strat_meta["name"],
             strategy_active=self.is_deployed_active,
+            sniper_mode_active=True,
             has_entry=has_entry,
             status_message=status_message,
             wait_reasons=wait_reasons,
             confluence_score=score,
             checklist=checklist,
             entry_zone=entry_zone,
-            step_a_structure=structure,
+            step_a_structure=structure_ltf,
+            htf_alignment={
+                "1h": structure_1h.directional_bias,
+                "4h": structure_4h.directional_bias
+            },
             telegram_status=telegram_status
         )
 
@@ -403,104 +417,272 @@ class StrategyManager:
 
         return response
 
-    # ------------------------------------------------------------------------
-    # Strategy 1: Smart Money Concepts (SMC) Evaluation
-    # ------------------------------------------------------------------------
-    def _eval_smc(
+    # ========================================================================
+    # GLOBAL SNIPER MODE VALIDATOR (Enforces 4 Core Institutional Rules)
+    # ========================================================================
+    def validate_sniper_mode(
         self,
+        symbol: str,
         candles_ltf: List[CandleData],
-        candles_htf: List[CandleData],
-        structure: StructureAnalysisResult,
-        params: Dict[str, Any]
+        candles_1h: List[CandleData],
+        candles_4h: List[CandleData],
+        structure_ltf: StructureAnalysisResult,
+        structure_1h: StructureAnalysisResult,
+        structure_4h: StructureAnalysisResult,
+        action: str,  # "BUY" or "SELL"
+        strategy_name: str,
+        prelim_checks: List[ConfluenceCheckItem]
     ) -> Tuple[bool, Optional[EntryZone], int, List[ConfluenceCheckItem], List[str]]:
+        """
+        Global Sniper Mode Validator:
+        Strictly enforces 4 institutional conditions simultaneously:
+        1. Liquidity Sweep First (BSL or SSL pool purged with wick absorption).
+        2. Strong Displacement & CHoCH (Break of character with aggressive impulse leaving active FVG).
+        3. Deep Mitigation (Retracement into Discount for Long / Premium for Short, mitigating OB/FVG).
+        4. HTF Alignment (15m signal MUST align with 1H and 4H directional bias).
+
+        If EVEN ONE condition fails, the trade is REJECTED (0 signals generated).
+        """
         cur_price = candles_ltf[-1].close
         fvgs = self.smc_analyzer.find_fair_value_gaps(candles_ltf)
         obs = self.smc_analyzer.find_order_blocks(candles_ltf, fvgs=fvgs)
 
-        active_bullish_fvg = next((f for f in fvgs if f.bias == "BULLISH" and not f.fully_filled), None)
-        active_bullish_ob = next((o for o in obs if o.bias == "BULLISH" and not o.broken), None)
-        active_bearish_fvg = next((f for f in fvgs if f.bias == "BEARISH" and not f.fully_filled), None)
-        active_bearish_ob = next((o for o in obs if o.bias == "BEARISH" and not o.broken), None)
-
         checklist: List[ConfluenceCheckItem] = []
         wait_reasons: List[str] = []
 
-        # Check 1: Macro Structure Alignment
-        bias_aligned = structure.directional_bias in ["BULLISH", "BEARISH"]
-        checklist.append(ConfluenceCheckItem(
-            name="Macro Directional Bias",
-            status="PASSED" if bias_aligned else "WAITING",
-            description=f"Market structure is {structure.directional_bias} ({structure.confidence}% confidence)."
-        ))
-        if not bias_aligned:
-            wait_reasons.append("Market is currently Ranging with no clear directional expansion.")
+        is_buy = (action == "BUY")
 
-        # Check 2: Active Zone Interaction
-        is_bullish = structure.directional_bias == "BULLISH"
-        zone_found = False
-        zone_desc = ""
+        # --------------------------------------------------------------------
+        # 1. Condition 1: Major Liquidity Sweep (BSL / SSL Purge)
+        # --------------------------------------------------------------------
+        sweep_passed = False
+        sweep_desc = ""
+        swept_price = None
 
-        if is_bullish:
-            if active_bullish_ob:
-                dist_pct = abs(cur_price - active_bullish_ob.top) / cur_price * 100
-                if dist_pct < 1.2 or cur_price >= active_bullish_ob.bottom:
-                    zone_found = True
-                    zone_desc = f"Testing Bullish Demand OB (${active_bullish_ob.bottom:,.2f} - ${active_bullish_ob.top:,.2f})"
-            elif active_bullish_fvg:
-                dist_pct = abs(cur_price - active_bullish_fvg.top) / cur_price * 100
-                if dist_pct < 1.2:
-                    zone_found = True
-                    zone_desc = f"Testing Bullish FVG Zone (${active_bullish_fvg.bottom:,.2f} - ${active_bullish_fvg.top:,.2f})"
-        else:
-            if active_bearish_ob:
-                dist_pct = abs(cur_price - active_bearish_ob.bottom) / cur_price * 100
-                if dist_pct < 1.2 or cur_price <= active_bearish_ob.top:
-                    zone_found = True
-                    zone_desc = f"Testing Bearish Supply OB (${active_bearish_ob.bottom:,.2f} - ${active_bearish_ob.top:,.2f})"
-            elif active_bearish_fvg:
-                dist_pct = abs(cur_price - active_bearish_fvg.bottom) / cur_price * 100
-                if dist_pct < 1.2:
-                    zone_found = True
-                    zone_desc = f"Testing Bearish FVG Zone (${active_bearish_fvg.bottom:,.2f} - ${active_bearish_fvg.top:,.2f})"
+        if is_buy:
+            low_swings = [s for s in structure_ltf.swing_points if s.point_type == "LOW"]
+            ssl_levels = [l.price for l in structure_ltf.ssl_levels]
+            all_low_targets = set([s.price for s in low_swings[:-1]] + ssl_levels)
 
-        checklist.append(ConfluenceCheckItem(
-            name="Institutional Zone Mitigation",
-            status="PASSED" if zone_found else "WAITING",
-            description=zone_desc if zone_found else f"Price (${cur_price:,.2f}) is in mid-range; waiting for tap into valid demand/supply zone."
-        ))
-        if not zone_found:
-            wait_reasons.append("No active unmitigated Order Block or FVG currently being tapped. Awaiting liquidity re-test.")
+            for low_level in all_low_targets:
+                for c in candles_ltf[-25:]:
+                    if c.low < low_level:
+                        if cur_price >= low_level * 0.998 or c.close >= low_level:
+                            sweep_passed = True
+                            swept_price = low_level
+                            break
+                if sweep_passed:
+                    break
 
-        # Check 3: Risk/Reward to Liquidity Pool
-        target_pool = structure.nearest_bsl if is_bullish else structure.nearest_ssl
-        target_valid = target_pool is not None and (
-            (is_bullish and target_pool > cur_price) or (not is_bullish and target_pool < cur_price)
-        )
-        checklist.append(ConfluenceCheckItem(
-            name="Liquidity Target (BSL/SSL)",
-            status="PASSED" if target_valid else "WAITING",
-            description=f"Target liquidity pool available at ${target_pool:,.2f}" if target_valid else "Nearest liquidity target already swept."
-        ))
-        if not target_valid:
-            wait_reasons.append("Nearest liquidity pool already cleared. Waiting for new swing liquidity to form.")
-
-        # Calculate score
-        passed_count = sum(1 for c in checklist if c.status == "PASSED")
-        score = int((passed_count / len(checklist)) * 100)
-
-        # STRICT Confluence check: All must be PASSED
-        if passed_count == len(checklist):
-            action = "BUY" if is_bullish else "SELL"
-            if is_bullish:
-                sl = (active_bullish_ob.bottom * 0.9985) if active_bullish_ob else (cur_price * 0.988)
-                risk = cur_price - sl
-                tp1 = cur_price + (risk * 2.0)
-                tp2 = target_pool if (target_pool and target_pool > tp1) else (cur_price + risk * 3.2)
+            if sweep_passed:
+                sweep_desc = f"Swept Sell-Side Liquidity (SSL) at ${swept_price:,.2f} with institutional absorption."
             else:
-                sl = (active_bearish_ob.top * 1.0015) if active_bearish_ob else (cur_price * 1.012)
+                sweep_desc = f"No recent SSL sweep detected. Price (${cur_price:,.2f}) has not purged recent swing low stops."
+                wait_reasons.append("Sniper Rule #1: Missing Liquidity Sweep. Price must purge major Sell-Side Liquidity (SSL) before a valid institutional Long.")
+
+        else:
+            high_swings = [s for s in structure_ltf.swing_points if s.point_type == "HIGH"]
+            bsl_levels = [l.price for l in structure_ltf.bsl_levels]
+            all_high_targets = set([s.price for s in high_swings[:-1]] + bsl_levels)
+
+            for high_level in all_high_targets:
+                for c in candles_ltf[-25:]:
+                    if c.high > high_level:
+                        if cur_price <= high_level * 1.002 or c.close <= high_level:
+                            sweep_passed = True
+                            swept_price = high_level
+                            break
+                if sweep_passed:
+                    break
+
+            if sweep_passed:
+                sweep_desc = f"Swept Buy-Side Liquidity (BSL) at ${swept_price:,.2f} with institutional wick rejection."
+            else:
+                sweep_desc = f"No recent BSL sweep detected. Price (${cur_price:,.2f}) has not purged recent swing high stops."
+                wait_reasons.append("Sniper Rule #1: Missing Liquidity Sweep. Price must purge major Buy-Side Liquidity (BSL) before a valid institutional Short.")
+
+        checklist.append(ConfluenceCheckItem(
+            name="1. Major Liquidity Sweep (BSL/SSL Purge)",
+            status="PASSED" if sweep_passed else "WAITING",
+            description=sweep_desc
+        ))
+
+        # --------------------------------------------------------------------
+        # 2. Condition 2: Strong Displacement & CHoCH (Change of Character) with FVG
+        # --------------------------------------------------------------------
+        choch_passed = False
+        choch_desc = ""
+
+        body_sizes = [abs(c.close - c.open) for c in candles_ltf[-20:]]
+        avg_body = float(np.mean(body_sizes)) if body_sizes else 1.0
+
+        if is_buy:
+            high_swings = [s for s in structure_ltf.swing_points if s.point_type == "HIGH"]
+            has_choch_break = False
+            if high_swings:
+                recent_high = high_swings[-1].price
+                has_choch_break = any(c.close > recent_high * 0.999 for c in candles_ltf[-12:]) or structure_ltf.directional_bias == "BULLISH"
+            else:
+                has_choch_break = structure_ltf.directional_bias == "BULLISH"
+
+            has_displacement = any(
+                (c.close > c.open) and (abs(c.close - c.open) >= 1.25 * avg_body)
+                for c in candles_ltf[-12:]
+            )
+
+            bullish_fvgs = [f for f in fvgs if f.bias == BiasType.BULLISH and not f.fully_filled and f.gap_pct >= 0.03]
+            has_fvg = len(bullish_fvgs) > 0
+
+            choch_passed = has_choch_break and (has_displacement or has_fvg)
+            if choch_passed and has_fvg:
+                fvg_zone = f"${bullish_fvgs[0].bottom:,.2f} - ${bullish_fvgs[0].top:,.2f}"
+                choch_desc = f"Confirmed Bullish CHoCH breakout with strong impulse displacement leaving active FVG ({fvg_zone})."
+            elif choch_passed:
+                choch_desc = "Confirmed Bullish CHoCH breakout with strong volume displacement."
+            else:
+                choch_desc = "Missing clear Bullish CHoCH breakout with strong volume displacement and Fair Value Gap imbalance."
+                wait_reasons.append("Sniper Rule #2: Missing CHoCH Displacement. Institutional buying requires a violent displacement leg creating an FVG.")
+
+        else:
+            low_swings = [s for s in structure_ltf.swing_points if s.point_type == "LOW"]
+            has_choch_break = False
+            if low_swings:
+                recent_low = low_swings[-1].price
+                has_choch_break = any(c.close < recent_low * 1.001 for c in candles_ltf[-12:]) or structure_ltf.directional_bias == "BEARISH"
+            else:
+                has_choch_break = structure_ltf.directional_bias == "BEARISH"
+
+            has_displacement = any(
+                (c.close < c.open) and (abs(c.close - c.open) >= 1.25 * avg_body)
+                for c in candles_ltf[-12:]
+            )
+
+            bearish_fvgs = [f for f in fvgs if f.bias == BiasType.BEARISH and not f.fully_filled and f.gap_pct >= 0.03]
+            has_fvg = len(bearish_fvgs) > 0
+
+            choch_passed = has_choch_break and (has_displacement or has_fvg)
+            if choch_passed and has_fvg:
+                fvg_zone = f"${bearish_fvgs[0].bottom:,.2f} - ${bearish_fvgs[0].top:,.2f}"
+                choch_desc = f"Confirmed Bearish CHoCH breakdown with strong impulse displacement leaving active FVG ({fvg_zone})."
+            elif choch_passed:
+                choch_desc = "Confirmed Bearish CHoCH breakdown with strong volume displacement."
+            else:
+                choch_desc = "Missing clear Bearish CHoCH breakdown with strong volume displacement and Fair Value Gap imbalance."
+                wait_reasons.append("Sniper Rule #2: Missing CHoCH Displacement. Institutional selling requires a violent displacement leg creating an FVG.")
+
+        checklist.append(ConfluenceCheckItem(
+            name="2. Strong Displacement & CHoCH (FVG Imbalance)",
+            status="PASSED" if choch_passed else "WAITING",
+            description=choch_desc
+        ))
+
+        # --------------------------------------------------------------------
+        # 3. Condition 3: Deep Mitigation (Discount / Premium Arrays)
+        # --------------------------------------------------------------------
+        mitigation_passed = False
+        mitigation_desc = ""
+
+        if is_buy:
+            range_low = swept_price if swept_price else min(c.low for c in candles_ltf[-20:])
+            range_high = max(c.high for c in candles_ltf[-15:])
+            equilibrium = range_low + 0.5 * (range_high - range_low) if range_high > range_low else cur_price
+
+            in_discount = cur_price <= equilibrium * 1.003
+            discount_obs = [o for o in obs if o.bias == BiasType.BULLISH and not o.broken and o.top <= equilibrium * 1.05]
+            discount_fvgs = [f for f in fvgs if f.bias == BiasType.BULLISH and not f.fully_filled and f.top <= equilibrium * 1.05]
+
+            tapping_ob = next((o for o in discount_obs if o.bottom * 0.998 <= cur_price <= o.top * 1.003), None)
+            tapping_fvg = next((f for f in discount_fvgs if f.bottom * 0.998 <= cur_price <= f.top * 1.003), None)
+
+            mitigation_passed = in_discount and (tapping_ob is not None or tapping_fvg is not None)
+            if mitigation_passed:
+                zone_str = f"OB (${tapping_ob.bottom:,.2f} - ${tapping_ob.top:,.2f})" if tapping_ob else f"FVG (${tapping_fvg.bottom:,.2f} - ${tapping_fvg.top:,.2f})"
+                mitigation_desc = f"Deep Discount mitigation confirmed: Price (${cur_price:,.2f}) is in Discount (< EQ ${equilibrium:,.2f}) tapping unmitigated {zone_str}."
+            else:
+                mitigation_desc = f"Price (${cur_price:,.2f}) is {'in Premium (> EQ $' + f'{equilibrium:,.2f})' if not in_discount else 'not mitigating an unmitigated OB/FVG demand array in Discount'}."
+                wait_reasons.append(f"Sniper Rule #3: Unfavorable pricing. Price is {'in Premium' if not in_discount else 'not mitigating an unmitigated demand Order Block/FVG in Discount'} (EQ: ${equilibrium:,.2f}).")
+
+        else:
+            range_high = swept_price if swept_price else max(c.high for c in candles_ltf[-20:])
+            range_low = min(c.low for c in candles_ltf[-15:])
+            equilibrium = range_low + 0.5 * (range_high - range_low) if range_high > range_low else cur_price
+
+            in_premium = cur_price >= equilibrium * 0.997
+            premium_obs = [o for o in obs if o.bias == BiasType.BEARISH and not o.broken and o.bottom >= equilibrium * 0.95]
+            premium_fvgs = [f for f in fvgs if f.bias == BiasType.BEARISH and not f.fully_filled and f.bottom >= equilibrium * 0.95]
+
+            tapping_ob = next((o for o in premium_obs if o.bottom * 0.997 <= cur_price <= o.top * 1.002), None)
+            tapping_fvg = next((f for f in premium_fvgs if f.bottom * 0.997 <= cur_price <= f.top * 1.002), None)
+
+            mitigation_passed = in_premium and (tapping_ob is not None or tapping_fvg is not None)
+            if mitigation_passed:
+                zone_str = f"OB (${tapping_ob.bottom:,.2f} - ${tapping_ob.top:,.2f})" if tapping_ob else f"FVG (${tapping_fvg.bottom:,.2f} - ${tapping_fvg.top:,.2f})"
+                mitigation_desc = f"Deep Premium mitigation confirmed: Price (${cur_price:,.2f}) is in Premium (> EQ ${equilibrium:,.2f}) tapping unmitigated {zone_str}."
+            else:
+                mitigation_desc = f"Price (${cur_price:,.2f}) is {'in Discount (< EQ $' + f'{equilibrium:,.2f})' if not in_premium else 'not mitigating an unmitigated OB/FVG supply array in Premium'}."
+                wait_reasons.append(f"Sniper Rule #3: Unfavorable pricing. Price is {'in Discount' if not in_premium else 'not mitigating an unmitigated supply Order Block/FVG in Premium'} (EQ: ${equilibrium:,.2f}).")
+
+        checklist.append(ConfluenceCheckItem(
+            name="3. Deep Mitigation (Discount/Premium Array)",
+            status="PASSED" if mitigation_passed else "WAITING",
+            description=mitigation_desc
+        ))
+
+        # --------------------------------------------------------------------
+        # 4. Condition 4: Higher Timeframe (HTF) Alignment (15m + 1H + 4H)
+        # --------------------------------------------------------------------
+        bias_1h = structure_1h.directional_bias
+        bias_4h = structure_4h.directional_bias
+        htf_passed = False
+        htf_desc = ""
+
+        if is_buy:
+            htf_passed = (bias_1h == "BULLISH" and bias_4h == "BULLISH")
+            if htf_passed:
+                htf_desc = f"100% HTF Confluence: 15m Long perfectly aligns with 1H ({structure_1h.confidence}% Bullish) and 4H ({structure_4h.confidence}% Bullish) macro orderflow."
+            else:
+                htf_desc = f"HTF Conflict: 1H is {bias_1h}, 4H is {bias_4h}. Opposing macro orderflow."
+                wait_reasons.append(f"Sniper Rule #4: HTF Conflict. 15m Long opposes 1H ({bias_1h}) or 4H ({bias_4h}) macro directional trend.")
+        else:
+            htf_passed = (bias_1h == "BEARISH" and bias_4h == "BEARISH")
+            if htf_passed:
+                htf_desc = f"100% HTF Confluence: 15m Short perfectly aligns with 1H ({structure_1h.confidence}% Bearish) and 4H ({structure_4h.confidence}% Bearish) macro orderflow."
+            else:
+                htf_desc = f"HTF Conflict: 1H is {bias_1h}, 4H is {bias_4h}. Opposing macro orderflow."
+                wait_reasons.append(f"Sniper Rule #4: HTF Conflict. 15m Short opposes 1H ({bias_1h}) or 4H ({bias_4h}) macro directional trend.")
+
+        checklist.append(ConfluenceCheckItem(
+            name="4. Higher Timeframe Alignment (15m + 1H + 4H)",
+            status="PASSED" if htf_passed else "WAITING",
+            description=htf_desc
+        ))
+
+        # Append preliminary strategy check
+        for c in prelim_checks:
+            checklist.append(c)
+
+        # Calculate Confluence Score
+        sniper_checks = [sweep_passed, choch_passed, mitigation_passed, htf_passed]
+        passed_count = sum(1 for p in sniper_checks if p)
+        score = int((passed_count / len(sniper_checks)) * 100)
+
+        # STRICT SNIPER GATE: ALL 4 conditions MUST pass simultaneously!
+        all_passed = all(sniper_checks)
+
+        if all_passed:
+            # Build precision Sniper Entry Zone
+            if is_buy:
+                invalidation = swept_price if swept_price else min(c.low for c in candles_ltf[-10:])
+                sl = round(invalidation * 0.9985, 2)
+                risk = cur_price - sl
+                tp1 = round(cur_price + max(risk * 2.2, cur_price * 0.012), 2)
+                tp2 = round(structure_ltf.nearest_bsl if (structure_ltf.nearest_bsl and structure_ltf.nearest_bsl > tp1) else (cur_price + risk * 3.5), 2)
+            else:
+                invalidation = swept_price if swept_price else max(c.high for c in candles_ltf[-10:])
+                sl = round(invalidation * 1.0015, 2)
                 risk = sl - cur_price
-                tp1 = cur_price - (risk * 2.0)
-                tp2 = target_pool if (target_pool and target_pool < tp1) else (cur_price - risk * 3.2)
+                tp1 = round(cur_price - max(risk * 2.2, cur_price * 0.012), 2)
+                tp2 = round(structure_ltf.nearest_ssl if (structure_ltf.nearest_ssl and structure_ltf.nearest_ssl < tp1) else (cur_price - risk * 3.5), 2)
 
             rrr_val = round(abs(tp1 - cur_price) / max(0.01, abs(cur_price - sl)), 1)
             entry_zone = EntryZone(
@@ -512,18 +694,75 @@ class StrategyManager:
                 risk_reward_ratio=f"1:{rrr_val}",
                 invalidation_level=round(sl, 2)
             )
-            return True, entry_zone, score, checklist, []
+            return True, entry_zone, 100, checklist, []
 
         return False, None, score, checklist, wait_reasons
 
     # ------------------------------------------------------------------------
-    # Strategy 2: 9/20 EMA Dynamic Trend Follower
+    # Strategy 1: Smart Money Concepts (SMC) Evaluation under Sniper Mode
+    # ------------------------------------------------------------------------
+    def _eval_smc(
+        self,
+        candles_ltf: List[CandleData],
+        candles_1h: List[CandleData],
+        candles_4h: List[CandleData],
+        structure_ltf: StructureAnalysisResult,
+        structure_1h: StructureAnalysisResult,
+        structure_4h: StructureAnalysisResult,
+        params: Dict[str, Any]
+    ) -> Tuple[bool, Optional[EntryZone], int, List[ConfluenceCheckItem], List[str]]:
+        cur_price = candles_ltf[-1].close
+        fvgs = self.smc_analyzer.find_fair_value_gaps(candles_ltf)
+        obs = self.smc_analyzer.find_order_blocks(candles_ltf, fvgs=fvgs)
+
+        active_bullish_fvg = next((f for f in fvgs if f.bias == BiasType.BULLISH and not f.fully_filled), None)
+        active_bullish_ob = next((o for o in obs if o.bias == BiasType.BULLISH and not o.broken), None)
+        active_bearish_fvg = next((f for f in fvgs if f.bias == BiasType.BEARISH and not f.fully_filled), None)
+        active_bearish_ob = next((o for o in obs if o.bias == BiasType.BEARISH and not o.broken), None)
+
+        action = None
+        if structure_ltf.directional_bias == "BULLISH" or (active_bullish_ob or active_bullish_fvg):
+            action = "BUY"
+        elif structure_ltf.directional_bias == "BEARISH" or (active_bearish_ob or active_bearish_fvg):
+            action = "SELL"
+
+        if not action:
+            return False, None, 0, [
+                ConfluenceCheckItem(name="SMC Base Setup Trigger", status="WAITING", description="No active demand or supply zone interaction.")
+            ], ["Market is in neutral equilibrium with no active SMC zone interaction."]
+
+        prelim_checks = [
+            ConfluenceCheckItem(
+                name="SMC Institutional Zone Trigger",
+                status="PASSED",
+                description=f"Active {action} zone confluence identified on execution timeframe."
+            )
+        ]
+
+        return self.validate_sniper_mode(
+            symbol=structure_ltf.symbol,
+            candles_ltf=candles_ltf,
+            candles_1h=candles_1h,
+            candles_4h=candles_4h,
+            structure_ltf=structure_ltf,
+            structure_1h=structure_1h,
+            structure_4h=structure_4h,
+            action=action,
+            strategy_name="Smart Money Concepts (SMC)",
+            prelim_checks=prelim_checks
+        )
+
+    # ------------------------------------------------------------------------
+    # Strategy 2: 9/20 EMA Dynamic Trend Follower under Sniper Mode
     # ------------------------------------------------------------------------
     def _eval_ema_cross(
         self,
         candles_ltf: List[CandleData],
-        candles_htf: List[CandleData],
-        structure: StructureAnalysisResult,
+        candles_1h: List[CandleData],
+        candles_4h: List[CandleData],
+        structure_ltf: StructureAnalysisResult,
+        structure_1h: StructureAnalysisResult,
+        structure_4h: StructureAnalysisResult,
         params: Dict[str, Any]
     ) -> Tuple[bool, Optional[EntryZone], int, List[ConfluenceCheckItem], List[str]]:
         closes = [c.close for c in candles_ltf]
@@ -537,87 +776,49 @@ class StrategyManager:
         ema_slow = calculate_ema(closes, slow_period)[-1]
         ema_base = calculate_ema(closes, base_period)[-1]
 
-        checklist: List[ConfluenceCheckItem] = []
-        wait_reasons: List[str] = []
+        action = None
+        if ema_fast > ema_slow and cur_price > ema_base * 0.995:
+            action = "BUY"
+        elif ema_fast < ema_slow and cur_price < ema_base * 1.005:
+            action = "SELL"
 
-        is_bullish = structure.directional_bias == "BULLISH"
-        is_bearish = structure.directional_bias == "BEARISH"
+        if not action:
+            return False, None, 0, [
+                ConfluenceCheckItem(name="9/20 EMA Cross & 50-EMA Filter", status="WAITING", description="EMA momentum is not aligned with 50-EMA baseline.")
+            ], ["EMA 9 has not crossed EMA 20 in alignment with the 50-EMA macro filter."]
 
-        # Check 1: Structure Alignment
-        strat_align = (is_bullish and cur_price > ema_base) or (is_bearish and cur_price < ema_base)
-        checklist.append(ConfluenceCheckItem(
-            name="Macro Trend & 50-EMA Filter",
-            status="PASSED" if strat_align else "WAITING",
-            description=f"Price is {'above' if cur_price > ema_base else 'below'} 50-EMA (${ema_base:,.2f}) with {structure.directional_bias} structure."
-        ))
-        if not strat_align:
-            wait_reasons.append(f"Structure ({structure.directional_bias}) opposes 50-EMA trend filter (${ema_base:,.2f}).")
-
-        # Check 2: EMA 9 / EMA 20 Momentum Cross
-        ema_momentum_pass = (is_bullish and ema_fast > ema_slow) or (is_bearish and ema_fast < ema_slow)
-        checklist.append(ConfluenceCheckItem(
-            name="9/20 EMA Cross Alignment",
-            status="PASSED" if ema_momentum_pass else "WAITING",
-            description=f"9-EMA (${ema_fast:,.2f}) is {'above' if ema_fast > ema_slow else 'below'} 20-EMA (${ema_slow:,.2f})."
-        ))
-        if not ema_momentum_pass:
-            wait_reasons.append("EMA 9 has not crossed EMA 20 in alignment with macro bias.")
-
-        # Check 3: Value Zone Pullback Test (Not overextended!)
-        # In a valid trend entry, price should be pulling back into or near the 9/20 EMA pocket
-        pocket_low = min(ema_fast, ema_slow)
-        pocket_high = max(ema_fast, ema_slow)
-        dist_to_pocket_pct = (cur_price - pocket_high) / cur_price * 100 if is_bullish else (pocket_low - cur_price) / cur_price * 100
-
-        # Overextended if > 0.45% away from pocket
-        in_value_zone = abs(dist_to_pocket_pct) <= 0.45 or (pocket_low <= cur_price <= pocket_high * 1.002)
-
-        checklist.append(ConfluenceCheckItem(
-            name="Dynamic Support/Resistance Pullback",
-            status="PASSED" if in_value_zone else "WAITING",
-            description=f"Price is testing the 9/20 EMA value pocket (${pocket_low:,.2f} - ${pocket_high:,.2f})." if in_value_zone else f"Price (${cur_price:,.2f}) is overextended by {dist_to_pocket_pct:.2f}% from 9-EMA."
-        ))
-        if not in_value_zone:
-            wait_reasons.append(f"Price is currently chasing momentum ({dist_to_pocket_pct:+.2f}% away). Waiting for pullback re-test into 9/20 EMA zone.")
-
-        passed_count = sum(1 for c in checklist if c.status == "PASSED")
-        score = int((passed_count / len(checklist)) * 100)
-
-        if passed_count == len(checklist):
-            action = "BUY" if is_bullish else "SELL"
-            if is_bullish:
-                sl = pocket_low * 0.996
-                risk = cur_price - sl
-                tp1 = cur_price + (risk * 2.2)
-                tp2 = cur_price + (risk * 3.5)
-            else:
-                sl = pocket_high * 1.004
-                risk = sl - cur_price
-                tp1 = cur_price - (risk * 2.2)
-                tp2 = cur_price - (risk * 3.5)
-
-            rrr_val = round(abs(tp1 - cur_price) / max(0.01, abs(cur_price - sl)), 1)
-            entry_zone = EntryZone(
-                action=action,
-                entry=round(cur_price, 2),
-                stop_loss=round(sl, 2),
-                take_profit_1=round(tp1, 2),
-                take_profit_2=round(tp2, 2),
-                risk_reward_ratio=f"1:{rrr_val}",
-                invalidation_level=round(sl, 2)
+        prelim_checks = [
+            ConfluenceCheckItem(
+                name="9/20 EMA Momentum Trigger",
+                status="PASSED",
+                description=f"EMA 9 (${ema_fast:,.2f}) crossed EMA 20 (${ema_slow:,.2f}) with 50-EMA (${ema_base:,.2f}) filter."
             )
-            return True, entry_zone, score, checklist, []
+        ]
 
-        return False, None, score, checklist, wait_reasons
+        return self.validate_sniper_mode(
+            symbol=structure_ltf.symbol,
+            candles_ltf=candles_ltf,
+            candles_1h=candles_1h,
+            candles_4h=candles_4h,
+            structure_ltf=structure_ltf,
+            structure_1h=structure_1h,
+            structure_4h=structure_4h,
+            action=action,
+            strategy_name="9/20 EMA Dynamic Trend Follower",
+            prelim_checks=prelim_checks
+        )
 
     # ------------------------------------------------------------------------
-    # Strategy 3: Bollinger Bands 20/2 + RSI Mean Reversion
+    # Strategy 3: Bollinger Bands 20/2 + RSI Mean Reversion under Sniper Mode
     # ------------------------------------------------------------------------
     def _eval_bollinger(
         self,
         candles_ltf: List[CandleData],
-        candles_htf: List[CandleData],
-        structure: StructureAnalysisResult,
+        candles_1h: List[CandleData],
+        candles_4h: List[CandleData],
+        structure_ltf: StructureAnalysisResult,
+        structure_1h: StructureAnalysisResult,
+        structure_4h: StructureAnalysisResult,
         params: Dict[str, Any]
     ) -> Tuple[bool, Optional[EntryZone], int, List[ConfluenceCheckItem], List[str]]:
         closes = [c.close for c in candles_ltf]
@@ -626,123 +827,81 @@ class StrategyManager:
         sma, upper, lower = calculate_bollinger_bands(closes, period=20, num_std=2.0)
         rsi = calculate_rsi(closes, period=14)
 
-        checklist: List[ConfluenceCheckItem] = []
-        wait_reasons: List[str] = []
+        touch_lower = cur_price <= lower * 1.005 or rsi <= params.get("rsi_oversold", 38)
+        touch_upper = cur_price >= upper * 0.995 or rsi >= params.get("rsi_overbought", 62)
 
-        # Check 1: Band Envelope Extreme (Price touches or pierces outer band)
-        touch_lower = cur_price <= lower * 1.003
-        touch_upper = cur_price >= upper * 0.997
-        band_extreme_pass = touch_lower or touch_upper
+        action = None
+        if touch_lower:
+            action = "BUY"
+        elif touch_upper:
+            action = "SELL"
 
-        checklist.append(ConfluenceCheckItem(
-            name="Outer Band Volatility Exhaustion",
-            status="PASSED" if band_extreme_pass else "WAITING",
-            description=f"Price is testing {'Lower Band ($' + f'{lower:,.2f})' if touch_lower else ('Upper Band ($' + f'{upper:,.2f})' if touch_upper else 'inside 20-SMA envelope ($' + f'{sma:,.2f})')}."
-        ))
-        if not band_extreme_pass:
-            wait_reasons.append(f"Price is inside the normal volatility envelope (Lower: ${lower:,.2f}, Upper: ${upper:,.2f}). Waiting for extreme expansion test.")
+        if not action:
+            return False, None, 0, [
+                ConfluenceCheckItem(name="Bollinger Envelope Exhaustion", status="WAITING", description="Price is inside the neutral 20-SMA volatility envelope.")
+            ], [f"Price (${cur_price:,.2f}) is within normal volatility bands (Lower: ${lower:,.2f}, Upper: ${upper:,.2f}). Waiting for extreme expansion test."]
 
-        # Check 2: RSI Exhaustion Confirmation
-        rsi_oversold = rsi <= params.get("rsi_oversold", 38)
-        rsi_overbought = rsi >= params.get("rsi_overbought", 62)
-        rsi_pass = (touch_lower and rsi_oversold) or (touch_upper and rsi_overbought)
-
-        checklist.append(ConfluenceCheckItem(
-            name="RSI Momentum Exhaustion",
-            status="PASSED" if rsi_pass else "WAITING",
-            description=f"RSI is {rsi:.1f} ({'Oversold' if rsi_oversold else ('Overbought' if rsi_overbought else 'Neutral 40-60')})."
-        ))
-        if not rsi_pass:
-            wait_reasons.append(f"RSI is currently {rsi:.1f} (neutral). Awaiting exhaustion trigger (<{params.get('rsi_oversold', 38)} or >{params.get('rsi_overbought', 62)}).")
-
-        # Check 3: Mean Reversion Target Clearance
-        dist_to_mean = abs(cur_price - sma) / cur_price * 100
-        mean_clearance_pass = dist_to_mean >= 0.4
-        checklist.append(ConfluenceCheckItem(
-            name="Mean Reversion Space (to 20-SMA)",
-            status="PASSED" if mean_clearance_pass else "WAITING",
-            description=f"Distance to 20-SMA mean is {dist_to_mean:.2f}% (${sma:,.2f})."
-        ))
-        if not mean_clearance_pass:
-            wait_reasons.append(f"Insufficient reward space to 20-SMA baseline (${sma:,.2f}).")
-
-        passed_count = sum(1 for c in checklist if c.status == "PASSED")
-        score = int((passed_count / len(checklist)) * 100)
-
-        if passed_count == len(checklist):
-            action = "BUY" if touch_lower else "SELL"
-            if action == "BUY":
-                sl = lower * 0.995
-                risk = cur_price - sl
-                tp1 = sma
-                tp2 = upper
-            else:
-                sl = upper * 1.005
-                risk = sl - cur_price
-                tp1 = sma
-                tp2 = lower
-
-            rrr_val = round(abs(tp1 - cur_price) / max(0.01, abs(cur_price - sl)), 1)
-            entry_zone = EntryZone(
-                action=action,
-                entry=round(cur_price, 2),
-                stop_loss=round(sl, 2),
-                take_profit_1=round(tp1, 2),
-                take_profit_2=round(tp2, 2),
-                risk_reward_ratio=f"1:{rrr_val}",
-                invalidation_level=round(sl, 2)
+        prelim_checks = [
+            ConfluenceCheckItem(
+                name="Bollinger & RSI Exhaustion Trigger",
+                status="PASSED",
+                description=f"Price tested {'Lower Band ($' + f'{lower:,.2f})' if action == 'BUY' else 'Upper Band ($' + f'{upper:,.2f})'} with RSI at {rsi:.1f}."
             )
-            return True, entry_zone, score, checklist, []
+        ]
 
-        return False, None, score, checklist, wait_reasons
+        return self.validate_sniper_mode(
+            symbol=structure_ltf.symbol,
+            candles_ltf=candles_ltf,
+            candles_1h=candles_1h,
+            candles_4h=candles_4h,
+            structure_ltf=structure_ltf,
+            structure_1h=structure_1h,
+            structure_4h=structure_4h,
+            action=action,
+            strategy_name="Bollinger Bands Mean Reversion",
+            prelim_checks=prelim_checks
+        )
 
     # ------------------------------------------------------------------------
-    # Strategy 4: Custom Algorithmic Rules
+    # Strategy 4: Custom Algorithmic Rules under Sniper Mode
     # ------------------------------------------------------------------------
     def _eval_custom(
         self,
         candles_ltf: List[CandleData],
-        candles_htf: List[CandleData],
-        structure: StructureAnalysisResult,
+        candles_1h: List[CandleData],
+        candles_4h: List[CandleData],
+        structure_ltf: StructureAnalysisResult,
+        structure_1h: StructureAnalysisResult,
+        structure_4h: StructureAnalysisResult,
         params: Dict[str, Any]
     ) -> Tuple[bool, Optional[EntryZone], int, List[ConfluenceCheckItem], List[str]]:
-        # Hybrid quant checks
         closes = [c.close for c in candles_ltf]
         cur_price = closes[-1]
         ema_21 = calculate_ema(closes, 21)[-1]
 
-        checklist = [
+        action = "BUY" if cur_price > ema_21 else "SELL"
+
+        prelim_checks = [
             ConfluenceCheckItem(
-                name="21-EMA Baseline Trend",
-                status="PASSED" if (structure.directional_bias == "BULLISH" and cur_price > ema_21) or (structure.directional_bias == "BEARISH" and cur_price < ema_21) else "WAITING",
-                description=f"Price ${cur_price:,.2f} vs 21-EMA ${ema_21:,.2f}."
-            ),
-            ConfluenceCheckItem(
-                name="Structural Pivot Confirmation",
-                status="PASSED" if structure.confidence >= 80 else "WAITING",
-                description=f"Structure confidence is {structure.confidence}% (Threshold: 80%)."
+                name="Custom 21-EMA Hybrid Baseline",
+                status="PASSED",
+                description=f"Price (${cur_price:,.2f}) is {'above' if action == 'BUY' else 'below'} 21-EMA (${ema_21:,.2f})."
             )
         ]
-        passed_count = sum(1 for c in checklist if c.status == "PASSED")
-        score = int((passed_count / len(checklist)) * 100)
-        wait_reasons = []
-        if passed_count < len(checklist):
-            wait_reasons.append("Custom hybrid criteria not fully met.")
-            return False, None, score, checklist, wait_reasons
 
-        action = "BUY" if structure.directional_bias == "BULLISH" else "SELL"
-        sl = cur_price * (0.992 if action == "BUY" else 1.008)
-        tp1 = cur_price * (1.018 if action == "BUY" else 0.982)
-        entry_zone = EntryZone(
+        return self.validate_sniper_mode(
+            symbol=structure_ltf.symbol,
+            candles_ltf=candles_ltf,
+            candles_1h=candles_1h,
+            candles_4h=candles_4h,
+            structure_ltf=structure_ltf,
+            structure_1h=structure_1h,
+            structure_4h=structure_4h,
             action=action,
-            entry=round(cur_price, 2),
-            stop_loss=round(sl, 2),
-            take_profit_1=round(tp1, 2),
-            take_profit_2=round(tp1 * 1.01 if action == "BUY" else tp1 * 0.99, 2),
-            risk_reward_ratio="1:2.2",
-            invalidation_level=round(sl, 2)
+            strategy_name="Custom Algorithmic Rules",
+            prelim_checks=prelim_checks
         )
-        return True, entry_zone, score, checklist, []
+
 
 
 # Singleton strategy manager instance

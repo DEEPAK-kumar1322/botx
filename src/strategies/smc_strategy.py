@@ -17,6 +17,9 @@ from src.analysis.structure import MarketStructureAnalyzer
 from src.notifications.telegram_alerts import TelegramAlertSender
 
 
+from src.strategies.strategy_engine import strategy_manager
+
+
 class ExecutionSignal(BaseModel):
     id: str = Field(default_factory=lambda: f"SIG-{uuid.uuid4().hex[:6].upper()}")
     symbol: str
@@ -42,7 +45,7 @@ class SMCStrategyEngine:
         self.smc_analyzer = SMCAnalyzer()
         self.structure_analyzer = MarketStructureAnalyzer()
         self.notifier = TelegramAlertSender()
-        logger.info("Initialized SMCStrategyEngine")
+        logger.info("Initialized SMCStrategyEngine with Global Sniper Mode Gate")
 
     def toggle(self, enable: Optional[bool] = None) -> bool:
         """Activate or deactivate live strategy execution."""
@@ -51,6 +54,7 @@ class SMCStrategyEngine:
         else:
             self.is_active = enable
 
+        strategy_manager.set_active_strategy("smc", enable=self.is_active)
         status_str = "ACTIVATED" if self.is_active else "DEACTIVATED"
         logger.info(f"SMC Strategy is now {status_str}")
 
@@ -61,7 +65,8 @@ class SMCStrategyEngine:
                     f"{emoji} <b>BOTX STRATEGY ENGINE {status_str}</b>\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"• Strategy: <code>SMC Precision Liquidity Engine</code>\n"
-                    f"• Status: <b>{'LIVE SCANNING & EXECUTING' if self.is_active else 'STANDBY'}</b>\n"
+                    f"• Status: <b>{'LIVE SNIPER SCANNING' if self.is_active else 'STANDBY'}</b>\n"
+                    f"• Quality Gate: <b>100% Strict Sniper Mode (4 Conditions)</b>\n"
                     f"• Target Pairs: <code>BTC/USDT, ETH/USDT, XAUUSD, US100, XAGUSD</code>\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━"
                 )
@@ -71,109 +76,47 @@ class SMCStrategyEngine:
         return self.is_active
 
     def evaluate(self, symbol: str = "BTC/USDT", timeframe: str = "15m") -> Optional[ExecutionSignal]:
-        """Evaluate live market data and return actionable Entry/Exit signal."""
+        """
+        Evaluate live market data through the Global Sniper Mode validator.
+        Returns an ExecutionSignal ONLY if 100% of Sniper Mode conditions are met simultaneously:
+        1. Liquidity Sweep First (BSL/SSL Purge)
+        2. Strong Displacement & CHoCH (FVG Imbalance)
+        3. Deep Mitigation (Discount/Premium Array)
+        4. Higher Timeframe Alignment (15m + 1H + 4H)
+
+        If even ONE condition fails, returns None (STANDBY / ZERO signals).
+        """
         try:
-            candles = self.feed.fetch_recent_candles(symbol, timeframe=timeframe, limit=60)
-            if not candles:
-                logger.warning(f"No candles retrieved for {symbol}")
+            analysis = strategy_manager.run_strategy_analysis(symbol=symbol, timeframe=timeframe, strategy_id="smc")
+            if not analysis.has_entry or not analysis.entry_zone:
+                logger.info(
+                    f"Sniper Mode Gate: Zero execution signal for {symbol} on {timeframe}. "
+                    f"Standby enforced. Missing criteria: {', '.join(analysis.wait_reasons)}"
+                )
                 return None
 
-            cur_price = candles[-1].close
-            fvgs = self.smc_analyzer.find_fair_value_gaps(candles)
-            obs = self.smc_analyzer.find_order_blocks(candles, fvgs=fvgs)
-            structure = self.structure_analyzer.analyze(candles, symbol=symbol, timeframe=timeframe)
+            ez = analysis.entry_zone
+            signal = ExecutionSignal(
+                symbol=symbol,
+                timeframe=timeframe,
+                action=ez.action,
+                entry_price=ez.entry,
+                stop_loss=ez.stop_loss,
+                take_profit_1=ez.take_profit_1,
+                take_profit_2=ez.take_profit_2,
+                risk_reward_ratio=ez.risk_reward_ratio,
+                trigger_reason=f"Sniper A+ Setup: {analysis.strategy_name} verified with Sweep, CHoCH, Deep Mitigation, and 1H/4H Alignment."
+            )
 
-            # Check confluence:
-            # 1. Bullish Entry
-            active_bullish_fvg = next((f for f in fvgs if f.bias == "BULLISH" and not f.fully_filled), None)
-            active_bullish_ob = next((o for o in obs if o.bias == "BULLISH" and not o.broken), None)
+            self.signals.insert(0, signal)
+            if len(self.signals) > 30:
+                self.signals.pop()
 
-            # 2. Bearish Entry
-            active_bearish_fvg = next((f for f in fvgs if f.bias == "BEARISH" and not f.fully_filled), None)
-            active_bearish_ob = next((o for o in obs if o.bias == "BEARISH" and not o.broken), None)
-
-            signal = None
-
-            if structure.directional_bias == "BULLISH" or (active_bullish_ob and active_bullish_fvg):
-                # Calculate precision entry & SL
-                zone_low = active_bullish_ob.bottom if active_bullish_ob else (active_bullish_fvg.bottom if active_bullish_fvg else cur_price * 0.995)
-                entry = cur_price
-                risk = abs(entry - zone_low)
-                if risk == 0:
-                    risk = entry * 0.003
-
-                sl = round(zone_low - (risk * 0.15), 2)
-                tp1 = round(entry + (risk * 2.5), 2)
-                tp2 = round(entry + (risk * 4.0), 2)
-                rrr = "1:2.8"
-
-                signal = ExecutionSignal(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    action="BUY",
-                    entry_price=round(entry, 2),
-                    stop_loss=sl,
-                    take_profit_1=tp1,
-                    take_profit_2=tp2,
-                    risk_reward_ratio=rrr,
-                    trigger_reason=f"Bullish SMC Confluence: Tested Demand Zone ({structure.structure_phase}) with BSL target at ${structure.nearest_bsl or tp1:,.2f}"
-                )
-
-            elif structure.directional_bias == "BEARISH" or (active_bearish_ob and active_bearish_fvg):
-                zone_high = active_bearish_ob.top if active_bearish_ob else (active_bearish_fvg.top if active_bearish_fvg else cur_price * 1.005)
-                entry = cur_price
-                risk = abs(zone_high - entry)
-                if risk == 0:
-                    risk = entry * 0.003
-
-                sl = round(zone_high + (risk * 0.15), 2)
-                tp1 = round(entry - (risk * 2.5), 2)
-                tp2 = round(entry - (risk * 4.0), 2)
-                rrr = "1:2.8"
-
-                signal = ExecutionSignal(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    action="SELL",
-                    entry_price=round(entry, 2),
-                    stop_loss=sl,
-                    take_profit_1=tp1,
-                    take_profit_2=tp2,
-                    risk_reward_ratio=rrr,
-                    trigger_reason=f"Bearish SMC Confluence: Rejection at Supply Zone ({structure.structure_phase}) with SSL target at ${structure.nearest_ssl or tp1:,.2f}"
-                )
-
-            if signal:
-                self.signals.insert(0, signal)
-                logger.info(f"Generated new execution signal: {signal.action} {signal.symbol} @ {signal.entry_price}")
-
-                # Forward live execution signal to Telegram
-                if self.notifier.is_ready:
-                    try:
-                        action_emoji = "🟢 BUY (LONG)" if signal.action == "BUY" else "🔴 SELL (SHORT)"
-                        telegram_msg = (
-                            f"🎯 <b>BOTX PRECISION EXECUTION SIGNAL</b> 🎯\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"⚡ <b>Action</b>: <b>{action_emoji}</b>\n"
-                            f"🪙 <b>Asset</b>: <code>{signal.symbol}</code> ({signal.timeframe})\n"
-                            f"💰 <b>Entry Price</b>: <code>${signal.entry_price:,.2f}</code>\n"
-                            f"🛑 <b>Stop Loss (SL)</b>: <code>${signal.stop_loss:,.2f}</code>\n"
-                            f"🎯 <b>Take Profit 1 (TP1)</b>: <code>${signal.take_profit_1:,.2f}</code>\n"
-                            f"🏆 <b>Take Profit 2 (TP2)</b>: <code>${signal.take_profit_2:,.2f}</code>\n"
-                            f"⚖️ <b>Risk/Reward Ratio</b>: <code>{signal.risk_reward_ratio}</code>\n\n"
-                            f"ℹ️ <b>Rationale</b>: {signal.trigger_reason}\n"
-                            f"⏰ <b>Trigger Time (UTC)</b>: <code>{signal.timestamp.strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
-                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                            f"<i>Automated Strategy Execution via BotX Engine</i>"
-                        )
-                        self.notifier.send_raw_message(telegram_msg)
-                    except Exception as e:
-                        logger.error(f"Error sending execution signal to Telegram: {e}")
-
+            logger.info(f"Sniper Mode: 100% Confirmed Execution Signal Generated: {signal.action} {signal.symbol} @ {signal.entry_price}")
             return signal
 
         except Exception as e:
-            logger.error(f"Error evaluating live SMC strategy: {e}")
+            logger.error(f"Error evaluating live SMC strategy with Sniper Mode: {e}")
             return None
 
 
