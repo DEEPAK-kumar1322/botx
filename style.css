@@ -175,11 +175,15 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   background-color: var(--bg-body);
 }
 
-/* Right Sidebar: Live SMC Alerts */
+/* Right Sidebar: Live Trading & SMC Terminal */
 .sidebar-right {
   width: var(--sidebar-right-width);
   min-width: var(--sidebar-right-width);
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--bg-surface);
 }
 
 .alert-card {
@@ -314,6 +318,10 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
 }
 
 /* Panel Tabs in Right Sidebar */
+.panel-tabs-header {
+  flex-shrink: 0;
+  background-color: var(--bg-card);
+}
 .panel-tabs-header .nav-pills .nav-link {
   color: var(--text-muted);
   border-radius: 6px;
@@ -330,6 +338,65 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   border-color: rgba(0, 242, 254, 0.3);
 }
 
+/* Tab Panes Display Logic: Inactive panes strictly display: none */
+.sidebar-right .tab-content {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  display: block;
+}
+
+.sidebar-right .tab-pane {
+  display: none !important;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+.sidebar-right .tab-pane.active,
+.sidebar-right .tab-pane.show.active {
+  display: flex !important;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Pane Headers & Footers: Never shrink, stay fixed at top & bottom */
+.pane-header,
+.alerts-header {
+  flex-shrink: 0;
+  background-color: var(--bg-surface);
+}
+
+.pane-footer,
+.alerts-footer {
+  flex-shrink: 0;
+  background-color: var(--bg-card);
+}
+
+/* Pane Scroll Containers: Start directly below header, smooth scroll */
+.signals-scroll-container,
+.structure-scroll-container,
+.alerts-scroll-container {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  padding: 16px;
+  scroll-behavior: smooth;
+}
+
+/* Prevent Card Overlap with Header Area */
+.signals-scroll-container > *:first-child,
+.structure-scroll-container > *:first-child,
+.alerts-scroll-container > *:first-child {
+  margin-top: 4px;
+}
+
 /* Real-Time Metrics Sub-Strip below Chart Header */
 .chart-metrics-strip {
   min-height: 32px;
@@ -342,7 +409,7 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 12px;
+  padding: 14px;
   margin-bottom: 12px;
   position: relative;
   overflow: hidden;

@@ -415,12 +415,12 @@
       </div>
 
       <!-- Tab Panes Content -->
-      <div class="tab-content flex-grow-1 overflow-hidden d-flex flex-column" id="terminalTabsContent">
+      <div class="tab-content flex-grow-1 overflow-hidden" id="terminalTabsContent">
         
         <!-- PANE 1: Live Strategy Execution Signals -->
-        <div class="tab-pane fade show active flex-grow-1 d-flex flex-column overflow-hidden" id="pane-signals" role="tabpanel">
+        <div class="tab-pane fade show active" id="pane-signals" role="tabpanel" aria-labelledby="tab-signals">
           <!-- Strategy Header & Controls -->
-          <div class="p-3 border-bottom border-dark-subtle bg-dark-surface">
+          <div class="pane-header p-3 border-bottom border-dark-subtle bg-dark-surface flex-shrink-0">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <div class="d-flex align-items-center gap-2">
                 <span class="pulse-indicator" id="signalsPulse"></span>
@@ -442,7 +442,7 @@
           </div>
 
           <!-- Strategy Footer -->
-          <div class="p-2 border-top border-dark-subtle bg-dark-card d-flex align-items-center justify-content-between fs-8 text-muted">
+          <div class="pane-footer p-2 border-top border-dark-subtle bg-dark-card d-flex align-items-center justify-content-between fs-8 text-muted flex-shrink-0">
             <div class="d-flex align-items-center gap-1">
               <span class="status-dot"></span>
               <span>Strategy Engine Active</span>
@@ -452,9 +452,9 @@
         </div>
 
         <!-- PANE 2: On-Demand Structure & Liquidity (HH/HL/LH/LL & BSL/SSL) -->
-        <div class="tab-pane fade flex-grow-1 d-flex flex-column overflow-hidden" id="pane-structure" role="tabpanel">
+        <div class="tab-pane fade" id="pane-structure" role="tabpanel" aria-labelledby="tab-structure">
           <!-- Structure Header -->
-          <div class="p-3 border-bottom border-dark-subtle bg-dark-surface">
+          <div class="pane-header p-3 border-bottom border-dark-subtle bg-dark-surface flex-shrink-0">
             <div class="d-flex align-items-center justify-content-between mb-1">
               <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-bullseye text-primary-accent fs-6"></i>
@@ -476,8 +476,8 @@
         </div>
 
         <!-- PANE 3: Live SMC Alerts (FVG & Order Block Setups) -->
-        <div class="tab-pane fade flex-grow-1 d-flex flex-column overflow-hidden" id="pane-alerts" role="tabpanel">
-          <div class="alerts-header p-3 border-bottom border-dark-subtle">
+        <div class="tab-pane fade" id="pane-alerts" role="tabpanel" aria-labelledby="tab-alerts">
+          <div class="alerts-header p-3 border-bottom border-dark-subtle bg-dark-surface flex-shrink-0">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
@@ -512,7 +512,7 @@
           </div>
 
           <!-- Alerts Panel Footer Actions -->
-          <div class="alerts-footer p-2 border-top border-dark-subtle bg-dark-card d-flex align-items-center justify-content-between">
+          <div class="alerts-footer p-2 border-top border-dark-subtle bg-dark-card flex-shrink-0 d-flex align-items-center justify-content-between">
             <div class="d-flex align-items-center gap-1 text-muted fs-8">
               <span class="status-dot"></span>
               <span>Auto-scanning 1m/15m/1h</span>

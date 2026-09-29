@@ -341,6 +341,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initial On-Demand Structure Analysis & Live Signals Fetch
   fetchStructureAnalysis(state.currentDisplay, state.currentInterval);
   fetchStrategySignals();
+  switchRightTab("#pane-signals");
 });
 
 
@@ -825,6 +826,38 @@ function initTerminalExtensions() {
       evaluateLiveStrategy(false);
     });
   }
+
+  // Strict Tab Switching Listener to prevent inactive sections stacking or taking space
+  const tabButtons = document.querySelectorAll('#terminalTabs button[data-bs-toggle="pill"]');
+  tabButtons.forEach(btn => {
+    btn.addEventListener('show.bs.tab', (e) => {
+      const targetSelector = e.target.getAttribute('data-bs-target');
+      switchRightTab(targetSelector);
+    });
+  });
+}
+
+/**
+ * Switch Right Panel Tab cleanly, ensuring inactive panes are completely hidden (display: none)
+ */
+function switchRightTab(targetSelector) {
+  if (!targetSelector) return;
+  const tabBtn = document.querySelector(`#terminalTabs button[data-bs-target="${targetSelector}"]`);
+  if (tabBtn && typeof bootstrap !== "undefined" && bootstrap.Tab) {
+    const tabInstance = bootstrap.Tab.getOrCreateInstance(tabBtn);
+    tabInstance.show();
+  }
+
+  const allPanes = document.querySelectorAll('#terminalTabsContent .tab-pane');
+  allPanes.forEach(pane => {
+    if ('#' + pane.id === targetSelector) {
+      pane.classList.add('active', 'show');
+      pane.style.setProperty('display', 'flex', 'important');
+    } else {
+      pane.classList.remove('active', 'show');
+      pane.style.setProperty('display', 'none', 'important');
+    }
+  });
 }
 
 /**
@@ -857,11 +890,7 @@ async function fetchStructureAnalysis(symbol, interval, switchTab = false) {
     renderStructurePanel(data);
 
     if (switchTab) {
-      const tabEl = document.querySelector('#terminalTabs button[data-bs-target="#pane-structure"]');
-      if (tabEl) {
-        const tab = bootstrap.Tab.getOrCreateInstance(tabEl);
-        tab.show();
-      }
+      switchRightTab("#pane-structure");
       showToast("Structure Analyzed", `${data.symbol} is ${data.directional_bias} (${data.confidence}% confidence)`);
     }
 
@@ -1105,11 +1134,7 @@ async function toggleStrategy() {
       showToast("Strategy Deployed", "Live SMC Strategy is now actively evaluating candle order confluence!");
       
       // Automatically switch to Signals tab to view live orders
-      const tabEl = document.querySelector('#terminalTabs button[data-bs-target="#pane-signals"]');
-      if (tabEl) {
-        const tab = bootstrap.Tab.getOrCreateInstance(tabEl);
-        tab.show();
-      }
+      switchRightTab("#pane-signals");
 
       // Trigger immediate evaluation
       await evaluateLiveStrategy(false);
