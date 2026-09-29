@@ -1,0 +1,284 @@
+/* ==========================================================================
+   BotX Modern Dark-Mode Trading Dashboard Stylesheet
+   Fonts: 'Syne' (Headers), 'Plus Jakarta Sans' (Body)
+   ========================================================================== */
+
+:root {
+  --bg-body: #0a0d14;
+  --bg-surface: #0f141f;
+  --bg-card: #151c2c;
+  --bg-card-hover: #1c2538;
+  
+  --border-color: #1e283d;
+  --border-active: #00f2fe;
+
+  --primary-accent: #00f2fe;
+  --primary-gradient: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+  
+  --accent-bullish: #00e676;
+  --accent-bearish: #ff3366;
+  --accent-warning: #ffb300;
+  --accent-info: #29b6f6;
+
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+
+  --sidebar-left-width: 270px;
+  --sidebar-right-width: 360px;
+  --header-height: 56px;
+}
+
+/* Typography Hierarchy */
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg-body);
+  color: var(--text-main);
+  height: 100vh;
+  margin: 0;
+  user-select: none;
+}
+
+h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
+  font-family: 'Syne', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Utilities */
+.letter-spacing-1 {
+  letter-spacing: 0.08em;
+}
+.fs-7 { font-size: 0.85rem !important; }
+.fs-8 { font-size: 0.75rem !important; }
+.fs-9 { font-size: 0.68rem !important; }
+
+.bg-dark-surface {
+  background-color: var(--bg-surface) !important;
+}
+.bg-dark-card {
+  background-color: var(--bg-card) !important;
+}
+.text-primary-accent {
+  color: var(--primary-accent) !important;
+}
+.btn-primary-accent {
+  background: var(--primary-gradient);
+  border: none;
+  color: #050b14 !important;
+  transition: all 0.2s ease;
+}
+.btn-primary-accent:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 0 14px rgba(0, 242, 254, 0.4);
+}
+
+/* Header & Brand */
+.brand-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--primary-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #050b14;
+  font-size: 1.1rem;
+}
+.brand-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.telegram-status-pill {
+  background-color: rgba(41, 182, 246, 0.1);
+  border: 1px solid rgba(41, 182, 246, 0.25);
+}
+
+.pulse-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: var(--accent-bullish);
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7);
+  animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 230, 118, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); }
+}
+
+/* Main Dashboard Viewport */
+.dashboard-viewport {
+  height: calc(100vh - var(--header-height));
+  width: 100vw;
+}
+
+/* Left Sidebar */
+.sidebar-left {
+  width: var(--sidebar-left-width);
+  min-width: var(--sidebar-left-width);
+  height: 100%;
+}
+
+.category-header {
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s ease;
+}
+.category-header:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.category-header[aria-expanded="true"] .chevron-icon {
+  transform: rotate(180deg);
+}
+.chevron-icon {
+  transition: transform 0.2s ease;
+}
+
+.asset-item {
+  background-color: transparent !important;
+  color: var(--text-main) !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  padding: 8px 10px;
+  margin-bottom: 3px;
+  transition: all 0.15s ease;
+}
+.asset-item:hover {
+  background-color: var(--bg-card-hover) !important;
+  border-color: var(--border-color) !important;
+}
+.asset-item.active {
+  background-color: rgba(0, 242, 254, 0.08) !important;
+  border-color: rgba(0, 242, 254, 0.35) !important;
+}
+.asset-item.active span {
+  color: var(--primary-accent) !important;
+}
+
+/* Center Content & TradingView Wrapper */
+.main-content-center {
+  height: 100%;
+  overflow: hidden;
+}
+.chart-header-bar {
+  min-height: 48px;
+}
+.tradingview-wrapper {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-body);
+}
+
+/* Right Sidebar: Live SMC Alerts */
+.sidebar-right {
+  width: var(--sidebar-right-width);
+  min-width: var(--sidebar-right-width);
+  height: 100%;
+}
+
+.alert-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  position: relative;
+  overflow: hidden;
+}
+.alert-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* Accent Strip by Setup Bias */
+.alert-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+}
+.alert-card.bullish::before {
+  background-color: var(--accent-bullish);
+  box-shadow: 0 0 10px var(--accent-bullish);
+}
+.alert-card.bearish::before {
+  background-color: var(--accent-bearish);
+  box-shadow: 0 0 10px var(--accent-bearish);
+}
+
+.badge-fvg {
+  background-color: rgba(0, 242, 254, 0.12);
+  color: var(--primary-accent);
+  border: 1px solid rgba(0, 242, 254, 0.3);
+}
+.badge-ob {
+  background-color: rgba(255, 179, 0, 0.12);
+  color: var(--accent-warning);
+  border: 1px solid rgba(255, 179, 0, 0.3);
+}
+
+.badge-bullish {
+  background-color: rgba(0, 230, 118, 0.12);
+  color: var(--accent-bullish);
+  border: 1px solid rgba(0, 230, 118, 0.3);
+}
+.badge-bearish {
+  background-color: rgba(255, 51, 102, 0.12);
+  color: var(--accent-bearish);
+  border: 1px solid rgba(255, 51, 102, 0.3);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent-bullish);
+}
+
+/* Custom Scrollbars */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  :root {
+    --sidebar-left-width: 230px;
+    --sidebar-right-width: 320px;
+  }
+}
+
+@media (max-width: 992px) {
+  .sidebar-left {
+    position: absolute;
+    z-index: 100;
+    left: -100%;
+    transition: left 0.3s ease;
+  }
+  .sidebar-left.show {
+    left: 0;
+  }
+}

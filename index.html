@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BotX - AI Trading Engine Dashboard</title>
+  
+  <!-- Google Fonts: Syne (Headers) & Plus Jakarta Sans (Body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Bootstrap 5 CSS & Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- TradingView Widget Script -->
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+</head>
+<body class="bg-body-dark text-light overflow-hidden">
+
+  <!-- Top Navigation Bar -->
+  <header class="navbar navbar-expand-lg border-bottom border-dark-subtle px-3 py-2 bg-dark-surface">
+    <div class="container-fluid px-0">
+      <!-- Brand Logo -->
+      <a class="navbar-brand d-flex align-items-center gap-2 m-0" href="#">
+        <div class="brand-logo-icon">
+          <i class="bi bi-cpu-fill"></i>
+        </div>
+        <div>
+          <span class="brand-title">Bot<span class="text-primary-accent">X</span></span>
+          <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 font-monospace fs-8">AI ENGINE v0.1</span>
+        </div>
+      </a>
+
+      <!-- Quick Market Metrics Ticker -->
+      <div class="d-none d-xl-flex align-items-center gap-4 text-secondary fs-7">
+        <div class="d-flex align-items-center gap-2">
+          <span class="text-secondary">ACTIVE PAIR:</span>
+          <span class="fw-bold text-light" id="topActivePair">BTC/USDT</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="text-secondary">PRICE:</span>
+          <span class="fw-bold text-light font-monospace" id="topPrice">$83,845.00</span>
+          <span class="badge bg-success-subtle text-success fs-8 font-monospace" id="topChange">+0.82%</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="text-secondary">FEED:</span>
+          <span class="badge bg-dark-subtle border border-secondary-subtle text-light font-monospace"><i class="bi bi-broadcast text-success me-1"></i>BINANCE REALTIME</span>
+        </div>
+      </div>
+
+      <!-- Header Actions -->
+      <div class="d-flex align-items-center gap-3">
+        <!-- Telegram Bot Status Pill -->
+        <div class="telegram-status-pill d-flex align-items-center gap-2 px-3 py-1 rounded-pill">
+          <i class="bi bi-telegram text-info"></i>
+          <span class="fs-8 fw-semibold text-light">@IamDeva_bot</span>
+          <span class="pulse-indicator"></span>
+        </div>
+
+        <!-- Clock Display -->
+        <div class="clock-display d-none d-md-block text-end font-monospace fs-8 text-secondary">
+          <div id="liveUtcClock">00:00:00 UTC</div>
+        </div>
+
+        <!-- Notification Bell with Badge -->
+        <button class="btn btn-icon btn-dark-subtle position-relative" id="notifyBellBtn" title="Alert Notifications">
+          <i class="bi bi-bell-fill"></i>
+          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="unreadBadge">
+            4
+          </span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main App Layout Container: Left Sidebar + Chart Center + Right Alerts -->
+  <main class="dashboard-viewport d-flex">
+    
+    <!-- LEFT SIDEBAR: Navigation & Asset Watchlists -->
+    <aside class="sidebar-left d-flex flex-column border-end border-dark-subtle bg-dark-surface p-2">
+      
+      <!-- Section Title -->
+      <div class="px-2 py-2 mb-1">
+        <span class="fs-8 text-uppercase fw-bold text-muted letter-spacing-1">Market Watchlists</span>
+      </div>
+
+      <!-- Accordion Navigation for Markets -->
+      <div class="flex-grow-1 overflow-y-auto custom-scrollbar pe-1" id="marketsAccordion">
+        
+        <!-- 1. Crypto Watchlist -->
+        <div class="market-category-card mb-2">
+          <div class="category-header d-flex align-items-center justify-content-between p-2 rounded" data-bs-toggle="collapse" data-bs-target="#cryptoList" aria-expanded="true">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-currency-bitcoin text-warning"></i>
+              <span class="fw-semibold fs-7">Crypto</span>
+            </div>
+            <i class="bi bi-chevron-down fs-8 text-muted chevron-icon"></i>
+          </div>
+          <div class="collapse show" id="cryptoList" data-bs-parent="#marketsAccordion">
+            <div class="list-group list-group-flush pt-1">
+              <button class="list-group-item list-group-item-action asset-item active d-flex justify-content-between align-items-center" data-symbol="BINANCE:BTCUSDT" data-display="BTC/USDT" data-type="crypto">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">BTC/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Bitcoin</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$83,845.00</div>
+                  <div class="fs-9 text-success">+0.82%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:ETHUSDT" data-display="ETH/USDT" data-type="crypto">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">ETH/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Ethereum</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$3,248.50</div>
+                  <div class="fs-9 text-success">+1.45%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:SOLUSDT" data-display="SOL/USDT" data-type="crypto">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">SOL/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Solana</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$194.20</div>
+                  <div class="fs-9 text-danger">-0.34%</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Forex Watchlist -->
+        <div class="market-category-card mb-2">
+          <div class="category-header d-flex align-items-center justify-content-between p-2 rounded" data-bs-toggle="collapse" data-bs-target="#forexList" aria-expanded="false">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-globe2 text-info"></i>
+              <span class="fw-semibold fs-7">Forex</span>
+            </div>
+            <i class="bi bi-chevron-down fs-8 text-muted chevron-icon"></i>
+          </div>
+          <div class="collapse" id="forexList" data-bs-parent="#marketsAccordion">
+            <div class="list-group list-group-flush pt-1">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="FX:EURUSD" data-display="EUR/USD" data-type="forex">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">EUR/USD</span>
+                  <span class="fs-9 text-muted font-monospace">Euro / Dollar</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">1.0842</div>
+                  <div class="fs-9 text-success">+0.12%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="FX:GBPUSD" data-display="GBP/USD" data-type="forex">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">GBP/USD</span>
+                  <span class="fs-9 text-muted font-monospace">Pound / Dollar</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">1.2985</div>
+                  <div class="fs-9 text-danger">-0.08%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="FX:USDJPY" data-display="USD/JPY" data-type="forex">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">USD/JPY</span>
+                  <span class="fs-9 text-muted font-monospace">Dollar / Yen</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">152.40</div>
+                  <div class="fs-9 text-success">+0.22%</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Indian Markets Watchlist -->
+        <div class="market-category-card mb-2">
+          <div class="category-header d-flex align-items-center justify-content-between p-2 rounded" data-bs-toggle="collapse" data-bs-target="#indianList" aria-expanded="false">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-graph-up-arrow text-success"></i>
+              <span class="fw-semibold fs-7">Indian Markets</span>
+            </div>
+            <i class="bi bi-chevron-down fs-8 text-muted chevron-icon"></i>
+          </div>
+          <div class="collapse" id="indianList" data-bs-parent="#marketsAccordion">
+            <div class="list-group list-group-flush pt-1">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="NSE:NIFTY" data-display="NIFTY 50" data-type="indices">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">NIFTY 50</span>
+                  <span class="fs-9 text-muted font-monospace">Index</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">25,840.10</div>
+                  <div class="fs-9 text-success">+0.65%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="NSE:BANKNIFTY" data-display="BANK NIFTY" data-type="indices">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">BANK NIFTY</span>
+                  <span class="fs-9 text-muted font-monospace">Index</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">53,920.40</div>
+                  <div class="fs-9 text-success">+0.92%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="NSE:RELIANCE" data-display="RELIANCE" data-type="equity">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">RELIANCE</span>
+                  <span class="fs-9 text-muted font-monospace">Equities</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">₹2,980.00</div>
+                  <div class="fs-9 text-danger">-0.18%</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Engine Status Footer Card in Sidebar -->
+      <div class="sidebar-footer p-2 rounded bg-dark-card border border-dark-subtle mt-auto">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="fs-8 fw-semibold text-secondary">ENGINE STATUS</span>
+          <span class="badge bg-success-subtle text-success fs-9 border border-success-subtle">RUNNING</span>
+        </div>
+        <div class="d-flex align-items-center gap-2 fs-8 text-muted mb-1">
+          <i class="bi bi-layers-half text-primary-accent"></i>
+          <span>SMC Detectors: FVG + OB</span>
+        </div>
+        <div class="d-flex align-items-center gap-2 fs-8 text-muted">
+          <i class="bi bi-clock-history text-info"></i>
+          <span>Timeframes: 1m | 15m | 1h</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER CONTAINER: TradingView Advanced Real-Time Chart -->
+    <section class="main-content-center flex-grow-1 d-flex flex-column">
+      
+      <!-- Chart Controls Sub-header -->
+      <div class="chart-header-bar d-flex flex-wrap align-items-center justify-content-between px-3 py-2 border-bottom border-dark-subtle bg-dark-surface">
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex align-items-center gap-2">
+            <h2 class="fs-5 fw-bold m-0 text-light" id="activeChartTitle">BTC/USDT</h2>
+            <span class="badge bg-secondary-subtle text-light fs-8 font-monospace" id="chartExchangeBadge">BINANCE</span>
+          </div>
+          
+          <!-- Timeframe Selector Pills -->
+          <div class="btn-group btn-group-sm" role="group" id="timeframeButtonGroup">
+            <button type="button" class="btn btn-outline-secondary" data-interval="1">1m</button>
+            <button type="button" class="btn btn-outline-secondary" data-interval="5">5m</button>
+            <button type="button" class="btn btn-outline-secondary active" data-interval="15">15m</button>
+            <button type="button" class="btn btn-outline-secondary" data-interval="60">1h</button>
+            <button type="button" class="btn btn-outline-secondary" data-interval="240">4h</button>
+            <button type="button" class="btn btn-outline-secondary" data-interval="D">1D</button>
+          </div>
+        </div>
+
+        <!-- Quick Strategy Actions -->
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-sm btn-outline-info d-flex align-items-center gap-1" id="triggerScanBtn" title="Run instant SMC pattern scan">
+            <i class="bi bi-search"></i>
+            <span>Scan SMC</span>
+          </button>
+          <button class="btn btn-sm btn-primary-accent text-dark fw-semibold d-flex align-items-center gap-1" id="dispatchTelegramBtn" title="Trigger Telegram alert test">
+            <i class="bi bi-send-fill"></i>
+            <span>Send Alert</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- TradingView Widget Embedding Container -->
+      <div class="tradingview-wrapper flex-grow-1 position-relative" id="tv_chart_container">
+        <!-- TradingView widget gets dynamically injected here -->
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: Live SMC Alerts (FVG & Order Block Notifications) -->
+    <aside class="sidebar-right border-start border-dark-subtle bg-dark-surface d-flex flex-column">
+      
+      <!-- Panel Header -->
+      <div class="alerts-header p-3 border-bottom border-dark-subtle">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
+            <h3 class="fs-6 fw-bold m-0 text-light letter-spacing-1">Live SMC Alerts</h3>
+          </div>
+          <span class="badge bg-primary text-dark fw-bold rounded-pill font-monospace" id="alertsCounter">4 Active</span>
+        </div>
+
+        <!-- Filter Tabs: All, FVG, OB, Active -->
+        <div class="btn-group btn-group-sm w-100 mt-2" role="group" id="alertFilterGroup">
+          <button type="button" class="btn btn-outline-secondary active" data-filter="all">All</button>
+          <button type="button" class="btn btn-outline-secondary" data-filter="FVG">FVG</button>
+          <button type="button" class="btn btn-outline-secondary" data-filter="OB">OB</button>
+          <button type="button" class="btn btn-outline-secondary" data-filter="active">Active</button>
+        </div>
+      </div>
+
+      <!-- Alerts List Container -->
+      <div class="alerts-scroll-container flex-grow-1 overflow-y-auto custom-scrollbar p-3" id="alertsListContainer">
+        <!-- Alert cards are dynamically rendered by script.js -->
+      </div>
+
+      <!-- Alerts Panel Footer Actions -->
+      <div class="alerts-footer p-2 border-top border-dark-subtle bg-dark-card d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-1 text-muted fs-8">
+          <span class="status-dot"></span>
+          <span>Auto-scanning 1m/15m/1h</span>
+        </div>
+        <button class="btn btn-sm btn-link text-decoration-none text-secondary fs-8 p-0" id="clearAlertsBtn">
+          <i class="bi bi-trash3 me-1"></i>Clear
+        </button>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- Alert Detail Modal -->
+  <div class="modal fade" id="alertDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark-card border border-dark-subtle text-light">
+        <div class="modal-header border-dark-subtle">
+          <h5 class="modal-title d-flex align-items-center gap-2 fs-6 fw-bold" id="modalAlertTitle">
+            <i class="bi bi-bullseye text-primary-accent"></i>
+            <span>Setup Breakdown</span>
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body font-monospace fs-8" id="modalAlertBody">
+          <!-- Dynamic setup details loaded here -->
+        </div>
+        <div class="modal-footer border-dark-subtle">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-sm btn-primary-accent text-dark fw-bold" id="modalSendTelegramBtn">
+            <i class="bi bi-telegram me-1"></i>Forward to Telegram
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container for User Feedback -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+    <div id="liveToast" class="toast bg-dark-card border border-primary-subtle text-light" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="toast-header bg-dark-surface border-bottom border-dark-subtle text-light">
+        <i class="bi bi-telegram text-info me-2"></i>
+        <strong class="me-auto" id="toastTitle">Telegram Alert</strong>
+        <small class="text-secondary">Just now</small>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+      <div class="toast-body fs-8" id="toastMessage">
+        Alert dispatched to @IamDeva_bot!
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Custom Application Logic -->
+  <script src="script.js"></script>
+</body>
+</html>
