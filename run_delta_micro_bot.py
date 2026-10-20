@@ -36,16 +36,10 @@ from src.notifications.telegram_alerts import TelegramAlertSender
 console = Console()
 
 MICRO_PAIRS = [
-    {"feed_sym": "XRP/USDT", "delta_sym": "XRPUSD", "product_id": 14969, "contract_val": 1.0, "default_contracts": 2},
-    {"feed_sym": "SUI/USDT", "delta_sym": "SUIUSD", "product_id": 17094, "contract_val": 1.0, "default_contracts": 2},
-    {"feed_sym": "ADA/USDT", "delta_sym": "ADAUSD", "product_id": 16614, "contract_val": 1.0, "default_contracts": 10},
-    {"feed_sym": "POL/USDT", "delta_sym": "POLUSD", "product_id": 20188, "contract_val": 10.0, "default_contracts": 2},
-    {"feed_sym": "TRX/USDT", "delta_sym": "TRXUSD", "product_id": 20193, "contract_val": 1.0, "default_contracts": 10},
-    {"feed_sym": "OP/USDT",  "delta_sym": "OPUSD",  "product_id": 16999, "contract_val": 0.1, "default_contracts": 100},
-    {"feed_sym": "GALA/USDT","delta_sym": "GALAUSD","product_id": 16757, "contract_val": 100.0, "default_contracts": 10},
-    {"feed_sym": "IOTA/USDT","delta_sym": "IOTAUSD","product_id": 16788, "contract_val": 1.0, "default_contracts": 50},
-    {"feed_sym": "DOGE/USDT","delta_sym": "DOGEUSD","product_id": 14745, "contract_val": 100.0, "default_contracts": 2},
-    {"feed_sym": "NEAR/USDT","delta_sym": "NEARUSD","product_id": 16987, "contract_val": 1.0, "default_contracts": 1},
+    {"feed_sym": "XRP/USDT", "delta_sym": "XRPUSD", "product_id": 14969, "contract_val": 1.0, "default_contracts": 1},
+    {"feed_sym": "SUI/USDT", "delta_sym": "SUIUSD", "product_id": 17328, "contract_val": 1.0, "default_contracts": 1},
+    {"feed_sym": "POL/USDT", "delta_sym": "POLUSD", "product_id": 39943, "contract_val": 10.0, "default_contracts": 1},
+    {"feed_sym": "ADA/USDT", "delta_sym": "ADAUSD", "product_id": 16614, "contract_val": 1.0, "default_contracts": 5},
 ]
 
 class DeltaMicroBot:
@@ -93,6 +87,11 @@ class DeltaMicroBot:
             contracts = max(1, int(contracts * (self.max_margin_inr / est_margin_inr)))
             notional_usd = contracts * c_val * entry_price
             est_margin_inr = (notional_usd / 10.0) * 85.0
+
+        # Strict hard cap: skip if minimum contract exceeds max allowed margin
+        if est_margin_inr > self.max_margin_inr:
+            logger.warning(f"Skipping {delta_sym}: Required margin ₹{est_margin_inr:.2f} INR exceeds cap of ₹{self.max_margin_inr:.2f} INR!")
+            return
 
         inr_balance = self.get_wallet_inr()
         logger.info(f"🚨 EXECUTING MICRO TRADE ON DELTA: {action} {contracts} {delta_sym} @ ${entry_price:.4f} (Margin: Rs {est_margin_inr:.2f} | Balance: Rs {inr_balance:.2f})")
@@ -142,12 +141,12 @@ class DeltaMicroBot:
                 logger.warning(f"Telegram alert error: {e}")
 
     def scan_cycle(self, cycle_num: int):
-        table = Table(title=f"Delta India Micro Scanner Cycle #{cycle_num} - {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        table = Table(title=f"Delta India Swing Scanner Cycle #{cycle_num} - {time.strftime('%Y-%m-%d %H:%M:%S')}")
         table.add_column("Pair", style="cyan", justify="left")
         table.add_column("Price", style="white", justify="right")
         table.add_column("1H Bias", justify="center")
-        table.add_column("Video Retest (5M)", justify="left")
-        table.add_column("Liquidity Sweep (15M)", justify="left")
+        table.add_column("15M Swing Retest", justify="left")
+        table.add_column("15M Liquidity Sweep", justify="left")
 
         open_positions = self.check_open_positions()
         has_open_pos = len(open_positions) > 0
@@ -198,24 +197,23 @@ class DeltaMicroBot:
             delta_sym = p_cfg["delta_sym"]
 
             try:
-                c_5m = self.feed.fetch_recent_candles(sym_feed, timeframe="5m", limit=30)
-                c_1h = self.feed.fetch_recent_candles(sym_feed, timeframe="1h", limit=30)
                 c_15m = self.feed.fetch_recent_candles(sym_feed, timeframe="15m", limit=30)
+                c_1h = self.feed.fetch_recent_candles(sym_feed, timeframe="1h", limit=30)
 
-                if not c_5m or not c_1h:
+                if not c_15m or not c_1h:
                     continue
 
-                curr_p = c_5m[-1].close
+                curr_p = c_15m[-1].close
 
-                # Evaluate Video Strategy
-                res_v = self.video_strat.evaluate(c_5m, c_1h, symbol=sym_feed, timeframe="5m")
-                # Evaluate Sweep Strategy
+                # Evaluate Video Strategy on 15M swing timeframe
+                res_v = self.video_strat.evaluate(c_15m, c_1h, symbol=sym_feed, timeframe="15m")
+                # Evaluate Sweep Strategy on 15M swing timeframe
                 res_s = self.sweep_strat.evaluate(c_15m, c_1h, symbol=sym_feed, timeframe="15m")
 
                 bias_style = "green" if res_v.htf_bias == "BULLISH" else ("red" if res_v.htf_bias == "BEARISH" else "yellow")
                 bias_text = f"[{bias_style}]{res_v.htf_bias}[/{bias_style}]"
 
-                v_cell = f"[bold green]SIGNAL: {res_v.signal.action}[/]" if res_v.has_valid_setup else "[dim]Waiting for 5M BOS[/dim]"
+                v_cell = f"[bold green]SIGNAL: {res_v.signal.action}[/]" if res_v.has_valid_setup else "[dim]Waiting for 15M BOS[/dim]"
                 s_cell = f"[bold green]SIGNAL: {res_s.signal.action}[/]" if res_s.has_valid_setup else "[dim]Waiting for 15M Sweep[/dim]"
 
                 table.add_row(delta_sym, f"${curr_p:.4f}", bias_text, v_cell, s_cell)
@@ -225,10 +223,10 @@ class DeltaMicroBot:
                 if self.auto_trade and not has_open_pos and time_since_trade > 600:
                     if res_v.has_valid_setup and res_v.signal:
                         sig = res_v.signal
-                        reason_str = getattr(sig, "reason", getattr(sig, "notes", "5M BOS Retest A++ Setup"))
+                        reason_str = getattr(sig, "reason", getattr(sig, "notes", "15M Swing BOS Retest A++ Setup"))
                         self.execute_micro_signal(
                             pair_cfg=p_cfg,
-                            signal_type="Video 5M Retest Scalper",
+                            signal_type="15M Swing BOS Retest",
                             action=sig.action,
                             entry_price=sig.entry_price,
                             sl_price=sig.stop_loss,
