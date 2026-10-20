@@ -32,7 +32,7 @@
         </div>
         <div>
           <span class="brand-title">Bot<span class="text-primary-accent">X</span></span>
-          <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2 font-monospace fs-8">AI ENGINE v0.1</span>
+          <span class="badge bg-warning text-dark fw-bold ms-2 font-monospace fs-9">BINANCE PRO</span>
         </div>
       </a>
 
@@ -42,34 +42,45 @@
           <i class="bi bi-graph-up me-1"></i>Terminal
         </button>
         <button class="btn btn-sm view-switch-btn px-3 py-1 fs-8 fw-semibold" id="btnNavStrategyHub">
-          <i class="bi bi-cpu-fill text-primary-accent me-1"></i>Strategy Hub
-          <span class="badge bg-primary text-dark rounded-pill ms-1 font-monospace fs-9" id="navActiveStratBadge">SMC</span>
+          <i class="bi bi-cpu-fill text-warning me-1"></i>Strategy Hub
+          <span class="badge bg-warning text-dark rounded-pill ms-1 font-monospace fs-9" id="navActiveStratBadge">SMC</span>
         </button>
       </div>
 
-      <!-- Quick Market Metrics Ticker -->
-      <div class="d-none d-xl-flex align-items-center gap-4 text-secondary fs-7">
-        <div class="d-flex align-items-center gap-2">
-          <span class="text-secondary">ACTIVE PAIR:</span>
-          <span class="fw-bold text-light" id="topActivePair">BTC/USDT</span>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-          <span class="text-secondary">PRICE:</span>
-          <span class="fw-bold text-light font-monospace" id="topPrice">$83,845.00</span>
-          <span class="badge bg-success-subtle text-success fs-8 font-monospace" id="topChange">+0.82%</span>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-          <span class="text-secondary">FEED:</span>
-          <span class="badge bg-dark-subtle border border-secondary-subtle text-light font-monospace"><i class="bi bi-broadcast text-success me-1"></i>BINANCE REALTIME</span>
+      <!-- Continuous Marquee Ticker Tape (Deeepr.ai style) -->
+      <div class="top-ticker-tape mx-3">
+        <div class="ticker-track-anim" id="topTickerTrack">
+          <div class="ticker-pill-item"><span class="sym">BTC/USDT</span><span class="val">$82,040</span><span class="chg pos">+1.12%</span></div>
+          <div class="ticker-pill-item"><span class="sym">ETH/USDT</span><span class="val">$2,402</span><span class="chg pos">+0.85%</span></div>
+          <div class="ticker-pill-item"><span class="sym">SOL/USDT</span><span class="val">$104.2</span><span class="chg neg">-0.34%</span></div>
+          <div class="ticker-pill-item"><span class="sym">BNB/USDT</span><span class="val">$726.8</span><span class="chg pos">+1.45%</span></div>
+          <div class="ticker-pill-item"><span class="sym">ZEC/USDT</span><span class="val">$1,135</span><span class="chg pos">+2.10%</span></div>
+          <div class="ticker-pill-item"><span class="sym">XRP/USDT</span><span class="val">$1.302</span><span class="chg pos">+0.95%</span></div>
+          <div class="ticker-pill-item"><span class="sym">AVAX/USDT</span><span class="val">$9.670</span><span class="chg neg">-0.42%</span></div>
+          <!-- Duplicated for infinite continuous scroll -->
+          <div class="ticker-pill-item"><span class="sym">BTC/USDT</span><span class="val">$82,040</span><span class="chg pos">+1.12%</span></div>
+          <div class="ticker-pill-item"><span class="sym">ETH/USDT</span><span class="val">$2,402</span><span class="chg pos">+0.85%</span></div>
+          <div class="ticker-pill-item"><span class="sym">SOL/USDT</span><span class="val">$104.2</span><span class="chg neg">-0.34%</span></div>
+          <div class="ticker-pill-item"><span class="sym">BNB/USDT</span><span class="val">$726.8</span><span class="chg pos">+1.45%</span></div>
+          <div class="ticker-pill-item"><span class="sym">ZEC/USDT</span><span class="val">$1,135</span><span class="chg pos">+2.10%</span></div>
+          <div class="ticker-pill-item"><span class="sym">XRP/USDT</span><span class="val">$1.302</span><span class="chg pos">+0.95%</span></div>
+          <div class="ticker-pill-item"><span class="sym">AVAX/USDT</span><span class="val">$9.670</span><span class="chg neg">-0.42%</span></div>
         </div>
       </div>
 
       <!-- Header Actions -->
       <div class="d-flex align-items-center gap-3">
-        <!-- Telegram Bot Status Pill -->
+        <!-- Live Wallet Balance -->
+        <div class="d-flex align-items-center gap-2 px-3 py-1 rounded bg-dark-card border border-dark-subtle font-monospace fs-8" id="navBalanceBox">
+          <i class="bi bi-wallet2 text-primary-accent"></i>
+          <span class="text-light fw-bold" id="topNavBalance">$10,639.93</span>
+          <span class="text-muted fs-9">USDT</span>
+        </div>
+
+        <!-- WhatsApp Bot Status Pill -->
         <div class="telegram-status-pill d-flex align-items-center gap-2 px-3 py-1 rounded-pill">
-          <i class="bi bi-telegram text-info"></i>
-          <span class="fs-8 fw-semibold text-light">@IamDeva_bot</span>
+          <i class="bi bi-whatsapp text-success"></i>
+          <span class="fs-8 fw-semibold text-light">WhatsApp Active</span>
           <span class="pulse-indicator"></span>
         </div>
 
@@ -77,14 +88,6 @@
         <div class="clock-display d-none d-md-block text-end font-monospace fs-8 text-secondary">
           <div id="liveUtcClock">00:00:00 UTC</div>
         </div>
-
-        <!-- Notification Bell with Badge -->
-        <button class="btn btn-icon btn-dark-subtle position-relative" id="notifyBellBtn" title="Alert Notifications">
-          <i class="bi bi-bell-fill"></i>
-          <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="unreadBadge">
-            4
-          </span>
-        </button>
       </div>
     </div>
   </header>
@@ -136,14 +139,58 @@
                 </div>
               </button>
 
-              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:SOLUSDT" data-display="SOL/USDT" data-type="crypto" data-price="194.20" data-change="-0.34%">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:SOLUSDT" data-display="SOL/USDT" data-type="crypto" data-price="104.20" data-change="-0.34%">
                 <div class="d-flex flex-column text-start">
                   <span class="fw-bold fs-7">SOL/USDT</span>
                   <span class="fs-9 text-muted font-monospace">Solana / Tether</span>
                 </div>
                 <div class="text-end font-monospace">
-                  <div class="fs-7 fw-semibold">$194.20</div>
+                  <div class="fs-7 fw-semibold">$104.20</div>
                   <div class="fs-9 text-danger">-0.34%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:BNBUSDT" data-display="BNB/USDT" data-type="crypto" data-price="726.80" data-change="+1.45%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">BNB/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Binance Coin / Tether</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$726.80</div>
+                  <div class="fs-9 text-success">+1.45%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:ZECUSDT" data-display="ZEC/USDT" data-type="crypto" data-price="1,135.00" data-change="+2.10%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">ZEC/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Zcash / Tether</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$1,135.00</div>
+                  <div class="fs-9 text-success">+2.10%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:XRPUSDT" data-display="XRP/USDT" data-type="crypto" data-price="1.3020" data-change="+0.95%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">XRP/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Ripple / Tether</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$1.3020</div>
+                  <div class="fs-9 text-success">+0.95%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:AVAXUSDT" data-display="AVAX/USDT" data-type="crypto" data-price="9.670" data-change="-0.42%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">AVAX/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Avalanche / Tether</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$9.670</div>
+                  <div class="fs-9 text-danger">-0.42%</div>
                 </div>
               </button>
             </div>
@@ -319,58 +366,49 @@
         <!-- CENTER CONTAINER: TradingView Advanced Real-Time Chart -->
         <section class="main-content-center flex-grow-1 d-flex flex-column">
           
-          <!-- Chart Controls Sub-header -->
-          <div class="chart-header-bar d-flex flex-wrap align-items-center justify-content-between px-3 py-2 border-bottom border-dark-subtle bg-dark-surface">
+          <!-- Chart Controls Sub-header (Single Row - No Wrap, No Overlap) -->
+          <div class="chart-header-bar d-flex align-items-center justify-content-between px-3 border-bottom border-dark-subtle bg-dark-surface">
             <div class="d-flex align-items-center gap-3">
               <div class="d-flex align-items-center gap-2">
-                <h2 class="fs-5 fw-bold m-0 text-light" id="activeChartTitle">BTC/USDT</h2>
-                <span class="badge bg-secondary-subtle text-light fs-8 font-monospace" id="chartExchangeBadge">BINANCE</span>
+                <h2 class="fs-6 fw-bold m-0 text-light" id="activeChartTitle">BTC/USDT</h2>
+                <span class="badge bg-warning text-dark fw-bold fs-9 font-monospace" id="chartExchangeBadge">BINANCE</span>
               </div>
               
-              <!-- Timeframe Selector Pills -->
+              <!-- Timeframe Selector Pills (Binance Style) -->
               <div class="btn-group btn-group-sm" role="group" id="timeframeButtonGroup">
-                <button type="button" class="btn btn-outline-secondary" data-interval="1">1m</button>
-                <button type="button" class="btn btn-outline-secondary" data-interval="5">5m</button>
-                <button type="button" class="btn btn-outline-secondary active" data-interval="15">15m</button>
-                <button type="button" class="btn btn-outline-secondary" data-interval="60">1h</button>
-                <button type="button" class="btn btn-outline-secondary" data-interval="240">4h</button>
-                <button type="button" class="btn btn-outline-secondary" data-interval="D">1D</button>
+                <button type="button" class="btn btn-tf" data-interval="1">1m</button>
+                <button type="button" class="btn btn-tf" data-interval="5">5m</button>
+                <button type="button" class="btn btn-tf active" data-interval="15">15m</button>
+                <button type="button" class="btn btn-tf" data-interval="60">1h</button>
+                <button type="button" class="btn btn-tf" data-interval="240">4h</button>
+                <button type="button" class="btn btn-tf" data-interval="D">1D</button>
               </div>
             </div>
 
             <!-- Quick Strategy Actions -->
             <div class="d-flex align-items-center gap-2">
-              <!-- Strategy Hub Shortcut Button -->
-              <button class="btn btn-sm btn-outline-primary-accent d-flex align-items-center gap-1" id="chartGoStrategyHubBtn" title="Open Modular Strategy Hub">
-                <i class="bi bi-grid-1x2-fill"></i>
-                <span>Strategy Hub</span>
+              <!-- Quick Analyze Button -->
+              <button class="btn btn-sm btn-outline-warning d-flex align-items-center gap-1 font-monospace fs-8" id="quickAnalyzeBtn" title="Run On-Demand Market Structure & Liquidity Analysis">
+                <i class="bi bi-cpu-fill text-warning"></i>
+                <span class="fw-semibold">Analyze</span>
               </button>
 
-              <!-- Quick Analyze Button -->
-              <button class="btn btn-sm btn-outline-info d-flex align-items-center gap-1" id="quickAnalyzeBtn" title="Run On-Demand Market Structure & Liquidity Analysis">
-                <i class="bi bi-cpu-fill"></i>
-                <span class="fw-semibold">Quick Analyze</span>
+              <!-- Strategy Hub Shortcut Button -->
+              <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 font-monospace fs-8 text-light" id="chartGoStrategyHubBtn" title="Open Modular Strategy Hub">
+                <i class="bi bi-grid-1x2-fill text-warning"></i>
+                <span>Hub</span>
               </button>
               
               <!-- Activate Strategy Toggle -->
-              <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-2" id="strategyToggleBtn" title="Deploy / Toggle Automated SMC Strategy Engine">
+              <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-2 font-monospace fs-8" id="strategyToggleBtn" title="Deploy / Toggle Automated SMC Strategy Engine">
                 <span class="strategy-status-dot" id="strategyBtnDot"></span>
                 <span class="fw-semibold" id="strategyBtnText">Activate Strategy</span>
-              </button>
-
-              <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" id="triggerScanBtn" title="Run instant SMC pattern scan">
-                <i class="bi bi-search"></i>
-                <span>Scan SMC</span>
-              </button>
-              <button class="btn btn-sm btn-primary-accent text-dark fw-semibold d-flex align-items-center gap-1" id="dispatchTelegramBtn" title="Trigger Telegram alert test">
-                <i class="bi bi-send-fill"></i>
-                <span>Send Alert</span>
               </button>
             </div>
           </div>
 
-          <!-- Real-Time Market Structure & Metrics Sub-Strip -->
-          <div class="chart-metrics-strip d-flex align-items-center justify-content-between px-3 py-1 bg-dark-card border-bottom border-dark-subtle font-monospace fs-8" id="chartMetricsStrip">
+          <!-- Real-Time Market Structure & Metrics Sub-Strip (Single Row, No Overlap) -->
+          <div class="chart-metrics-strip d-flex align-items-center justify-content-between px-3 bg-dark-card border-bottom border-dark-subtle font-monospace fs-8" id="chartMetricsStrip">
             <div class="d-flex align-items-center gap-3">
               <div class="d-flex align-items-center gap-1">
                 <span class="text-secondary">BIAS:</span>
@@ -378,7 +416,7 @@
               </div>
               <div class="d-flex align-items-center gap-1">
                 <span class="text-secondary">CONFIDENCE:</span>
-                <span class="text-primary-accent fw-bold" id="stripConfidence">92%</span>
+                <span class="text-warning fw-bold" id="stripConfidence">92%</span>
               </div>
               <div class="d-none d-lg-flex align-items-center gap-1">
                 <span class="text-secondary">PHASE:</span>
@@ -401,14 +439,165 @@
             </div>
           </div>
 
-          <!-- TradingView Widget Embedding Container -->
-          <div class="tradingview-wrapper flex-grow-1 position-relative" id="tv_chart_container">
-            <!-- TradingView widget gets dynamically injected here -->
+          <!-- Live Binance Position & Protection HUD Banner -->
+          <div class="position-hud-banner px-3 d-flex align-items-center justify-content-between font-monospace fs-8" id="positionHudBanner" style="display: none;">
+            <div class="d-flex align-items-center gap-3">
+              <span class="hud-status-dot"></span>
+              <span class="badge bg-danger font-monospace" id="hudSideBadge">SHORT 14X</span>
+              <span class="fw-bold text-white fs-7" id="hudSymbol">BTCUSDT</span>
+              <div class="d-flex align-items-center gap-1 text-secondary">
+                <span>Entry:</span>
+                <span class="text-white fw-bold" id="hudEntryPrice">$82,094.80</span>
+              </div>
+              <div class="d-flex align-items-center gap-1 text-secondary">
+                <span>Mark:</span>
+                <span class="text-white" id="hudMarkPrice">$81,905.78</span>
+              </div>
+              <div class="d-none d-md-flex align-items-center gap-1">
+                <span class="text-success"><i class="bi bi-bullseye me-1"></i>TP:</span>
+                <span class="text-success fw-bold" id="hudTpPrice">$81,750.89</span>
+              </div>
+              <div class="d-none d-md-flex align-items-center gap-1">
+                <span class="text-danger"><i class="bi bi-shield-shaded me-1"></i>SL:</span>
+                <span class="text-danger fw-bold" id="hudSlPrice">$82,160.78</span>
+              </div>
+              <div class="d-none d-lg-flex align-items-center gap-1 text-secondary">
+                <span>Trailing Stop:</span>
+                <span class="text-warning" id="hudCtcStop">$82,160.78</span>
+              </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <div class="d-flex align-items-center gap-1 me-2">
+                <span class="text-secondary">PnL:</span>
+                <span class="fw-bold fs-7 text-success" id="hudPnlValue">+$4.84 (+4.12%)</span>
+              </div>
+              <button class="btn btn-sm btn-outline-warning px-2 py-0 fs-8 font-monospace" id="hudModifyTpSlBtn" onclick="openTpSlModal()" title="Modify TP / SL Orders">
+                <i class="bi bi-pencil-square me-1"></i>Set TP/SL
+              </button>
+              <button class="btn btn-sm btn-danger px-2 py-0 fs-8 fw-bold" id="hudCloseBtn" onclick="closeLivePosition()" title="Market Close Position">
+                <i class="bi bi-x-circle me-1"></i>Market Close
+              </button>
+            </div>
+          </div>
+
+          <!-- TradingView Wrapper & Floating Target Chips (Flexbox Zero-Overlap) -->
+          <div class="tradingview-wrapper position-relative">
+            <!-- Floating On-Chart Trade Badges (Binance & Deeepr.ai style) -->
+            <div class="chart-floating-overlay" id="chartFloatingOverlay">
+              <!-- Live Entry Position Badge (Shows where trade was taken!) -->
+              <div class="chip-floating chip-entry" id="chipEntryBox" style="display: none;">
+                <span class="badge bg-danger font-monospace fs-9" id="chipEntrySide">SHORT 14X</span>
+                <span class="chip-key">ENTRY:</span>
+                <span class="chip-val font-monospace" id="chipEntryValue">$82,094.80</span>
+                <span class="badge bg-success text-dark font-monospace fw-bold ms-1" id="chipEntryPnl">+$4.84</span>
+              </div>
+              <!-- TP Target Badge -->
+              <div class="chip-floating chip-tp" id="chipTpBox">
+                <i class="bi bi-bullseye text-success"></i>
+                <span class="chip-key">TP TARGET:</span>
+                <span class="chip-val font-monospace" id="chipTpValue">$81,750.89 (+1:2 RR)</span>
+              </div>
+              <!-- SL Invalidation Badge -->
+              <div class="chip-floating chip-sl" id="chipSlBox">
+                <i class="bi bi-shield-shaded text-danger"></i>
+                <span class="chip-key">SL STOP:</span>
+                <span class="chip-val font-monospace" id="chipSlValue">$82,160.78 (Protection)</span>
+              </div>
+            </div>
+            <!-- Dedicated TradingView widget mount point -->
+            <div id="tv_chart_container" style="width: 100%; height: 100%;"></div>
+          </div>
+
+          <!-- Bottom Positions Dock (Binance Futures Pro Style) -->
+          <div class="bottom-positions-dock border-top border-dark-subtle bg-dark-card" id="bottomPositionsDock" style="display: none;">
+            <div class="d-flex align-items-center justify-content-between px-3 py-1 border-bottom border-dark-subtle bg-dark-surface fs-9 font-monospace">
+              <div class="d-flex align-items-center gap-2">
+                <span class="text-warning fw-bold"><i class="bi bi-list-check me-1"></i>POSITIONS (1)</span>
+                <span class="badge bg-success-subtle text-success">LIVE ON BINANCE</span>
+              </div>
+              <div class="text-secondary d-none d-md-block">
+                Auto-Managed: <span class="text-warning">5M BOS Retest Scalper</span> (CTC Trailing Active)
+              </div>
+            </div>
+            <div class="table-responsive px-2 py-1">
+              <table class="table table-dark table-sm table-borderless m-0 fs-8 font-monospace align-middle">
+                <thead>
+                  <tr class="text-secondary border-bottom border-dark-subtle fs-9">
+                    <th>Symbol</th>
+                    <th>Size</th>
+                    <th>Entry Price</th>
+                    <th>Mark Price</th>
+                    <th>Liq. Price</th>
+                    <th>Margin</th>
+                    <th>PNL (ROE %)</th>
+                    <th>TP / SL Order</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="dockPositionTableBody">
+                  <!-- Injected dynamically by script.js -->
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
 
         <!-- RIGHT PANEL: Live Strategy Signals, On-Demand Structure & SMC Alerts -->
         <aside class="sidebar-right border-start border-dark-subtle bg-dark-surface d-flex flex-column">
+          
+          <!-- Deeepr.ai 4-Lane Real-Time Intelligence Box (Signature Rotating Beam) -->
+          <div class="p-2 border-bottom border-dark-subtle bg-dark-surface">
+            <div class="beamwrap">
+              <div class="beamin p-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="pulse-indicator"></span>
+                    <span class="fs-8 text-secondary fw-bold letter-spacing-1">REAL-TIME CONFLUENCE</span>
+                  </div>
+                  <span class="verdict-pill pulse" id="aiVerdictPill">
+                    <i class="bi bi-arrow-up-right" id="aiVerdictIcon"></i>
+                    <span id="aiVerdictText">LONG (88%)</span>
+                  </span>
+                </div>
+                
+                <div class="d-flex flex-column gap-2 mt-2">
+                  <div class="lane-mini-row d-flex align-items-center justify-content-between p-1 rounded">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="lane-mini-ic lane-t">T</span>
+                      <span class="fs-8 text-light">Technical SMC (15m/1H)</span>
+                    </div>
+                    <span class="status-chip st-pos" id="laneTechStatus">BULLISH</span>
+                  </div>
+                  <div class="lane-mini-row d-flex align-items-center justify-content-between p-1 rounded">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="lane-mini-ic lane-p">P</span>
+                      <span class="fs-8 text-light">Video Retest (5M BOS)</span>
+                    </div>
+                    <span class="status-chip st-pos" id="lanePriceActionStatus">READY</span>
+                  </div>
+                  <div class="lane-mini-row d-flex align-items-center justify-content-between p-1 rounded">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="lane-mini-ic lane-f">F</span>
+                      <span class="fs-8 text-light">Order Flow / Liquidity</span>
+                    </div>
+                    <span class="status-chip st-pos" id="laneFlowStatus">SSL SWEPT</span>
+                  </div>
+                  <div class="lane-mini-row d-flex align-items-center justify-content-between p-1 rounded">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="lane-mini-ic lane-m">M</span>
+                      <span class="fs-8 text-light">Macro Sentiment</span>
+                    </div>
+                    <span class="status-chip st-neu" id="laneMacroStatus">NEUTRAL</span>
+                  </div>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top border-dark-subtle fs-9 font-monospace text-secondary">
+                  <span>Selected: <span class="text-white fw-bold" id="aiSelectedPair">BTC/USDT</span></span>
+                  <span class="text-primary-accent" id="aiModelVersion">DeepConfluence v3.1</span>
+                </div>
+              </div>
+            </div>
+          </div>
           
           <!-- Right Panel Navigation Tabs -->
           <div class="panel-tabs-header p-2 border-bottom border-dark-subtle bg-dark-card">
@@ -675,7 +864,77 @@
 
     </div>
 
-  </main>
+  <!-- Binance Pro TP / SL Adjustment Modal -->
+  <div class="modal fade" id="tpSlModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark-card border border-warning text-light" style="box-shadow: 0 0 30px rgba(240, 185, 11, 0.25);">
+        <div class="modal-header border-dark-subtle bg-dark-surface">
+          <h5 class="modal-title d-flex align-items-center gap-2 fs-6 fw-bold">
+            <i class="bi bi-shield-lock-fill text-warning"></i>
+            <span>Set TP / SL Order</span>
+            <span class="badge bg-warning text-dark font-monospace fs-9" id="tpSlModalSymbol">BTCUSDT SHORT</span>
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body font-monospace fs-8">
+          <div class="d-flex align-items-center justify-content-between p-2 rounded bg-dark-surface border border-dark-subtle mb-3">
+            <div>
+              <span class="text-secondary fs-9 d-block">Entry Price</span>
+              <span class="text-white fw-bold fs-7" id="tpSlModalEntry">$82,094.80</span>
+            </div>
+            <div>
+              <span class="text-secondary fs-9 d-block">Current Mark</span>
+              <span class="text-warning fw-bold fs-7" id="tpSlModalMark">$81,905.78</span>
+            </div>
+            <div class="text-end">
+              <span class="text-secondary fs-9 d-block">Position Size</span>
+              <span class="text-white fw-bold fs-7" id="tpSlModalSize">0.0256 BTC</span>
+            </div>
+          </div>
+
+          <!-- Take Profit Input -->
+          <div class="mb-3">
+            <label class="form-label text-success fw-bold d-flex justify-content-between">
+              <span><i class="bi bi-bullseye me-1"></i>Take Profit (TP) Trigger Price</span>
+              <span class="fs-9 text-secondary" id="tpEstProfit">Est. Profit: +$8.80</span>
+            </label>
+            <div class="input-group">
+              <span class="input-group-text bg-dark-surface border-dark-subtle text-secondary">$</span>
+              <input type="number" step="0.1" class="form-control bg-dark-surface border-dark-subtle text-light font-monospace fw-bold" id="tpInputPrice" placeholder="Enter TP price">
+            </div>
+          </div>
+
+          <!-- Stop Loss Input -->
+          <div class="mb-3">
+            <label class="form-label text-danger fw-bold d-flex justify-content-between">
+              <span><i class="bi bi-shield-shaded me-1"></i>Stop Loss (SL) Trigger Price</span>
+              <span class="fs-9 text-secondary" id="slEstLoss">Est. Loss: -$1.70</span>
+            </label>
+            <div class="input-group">
+              <span class="input-group-text bg-dark-surface border-dark-subtle text-secondary">$</span>
+              <input type="number" step="0.1" class="form-control bg-dark-surface border-dark-subtle text-light font-monospace fw-bold" id="slInputPrice" placeholder="Enter SL price">
+            </div>
+          </div>
+
+          <!-- Quick Presets -->
+          <div class="mb-2">
+            <span class="text-secondary fs-9 mb-1 d-block">Quick Risk-Reward Presets:</span>
+            <div class="btn-group btn-group-sm w-100" role="group">
+              <button type="button" class="btn btn-outline-secondary fs-9" onclick="applyTpSlPreset('BE')">Break-Even (BE)</button>
+              <button type="button" class="btn btn-outline-warning fs-9 active" onclick="applyTpSlPreset('1:2')">1:2 RR (Target)</button>
+              <button type="button" class="btn btn-outline-success fs-9" onclick="applyTpSlPreset('1:3')">1:3 RR (Runner)</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-dark-subtle bg-dark-surface">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-warning text-dark fw-bold px-3" onclick="saveTpSlSettings()">
+            <i class="bi bi-check-circle-fill me-1"></i>Confirm TP/SL Order
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Alert Detail Modal -->
   <div class="modal fade" id="alertDetailModal" tabindex="-1" aria-hidden="true">

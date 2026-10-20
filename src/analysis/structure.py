@@ -112,11 +112,12 @@ class MarketStructureAnalyzer:
                     label = "LL"  # Lower Low
                 last_low = s["price"]
 
+            prec = 6 if s["price"] < 1.0 else (4 if s["price"] < 10.0 else 2)
             classified_swings.append(
                 SwingPoint(
                     index=s["index"],
                     timestamp=s["timestamp"],
-                    price=round(s["price"], 2),
+                    price=round(s["price"], prec),
                     point_type=s["type"],
                     label=label
                 )
@@ -130,6 +131,7 @@ class MarketStructureAnalyzer:
             raise ValueError("Candles series cannot be empty")
 
         cur_price = candles[-1].close
+        prec = 6 if cur_price < 1.0 else (4 if cur_price < 10.0 else 2)
         swings = self.find_swing_points(candles)
 
         high_swings = [s for s in swings if s.point_type == "HIGH"]
@@ -222,7 +224,7 @@ class MarketStructureAnalyzer:
         return StructureAnalysisResult(
             symbol=symbol,
             timeframe=timeframe,
-            current_price=round(cur_price, 2),
+            current_price=round(cur_price, prec),
             directional_bias=directional_bias,
             confidence=conf,
             rationale=rationale,

@@ -25,6 +25,9 @@ from src.analysis.smc import SMCAnalyzer
 from src.analysis.models import BiasType, FairValueGap, OrderBlock
 from src.analysis.structure import MarketStructureAnalyzer, StructureAnalysisResult, SwingPoint, LiquidityLevel
 from src.notifications.telegram_alerts import TelegramAlertSender
+from src.notifications.whatsapp_alerts import WhatsAppAlertSender
+from src.strategies.liquidity_sweep import LiquiditySweepAnalyzer
+from src.strategies.price_action_retest import PriceActionRetestAnalyzer
 
 
 # ============================================================================
@@ -161,24 +164,53 @@ class StrategyManager:
     """
     Unified Algorithmic Strategy Hub Manager.
     Manages custom strategies, runs two-step analysis (Market Structure + MTF Logic),
-    enforces strict anti-spam confluence, and applies Telegram cooldowns.
+    enforces strict anti-spam confluence, and applies WhatsApp & Telegram cooldowns.
     """
 
     def __init__(self):
         self.feed = UnifiedMarketFeed()
         self.structure_analyzer = MarketStructureAnalyzer(swing_window=3)
         self.smc_analyzer = SMCAnalyzer()
+        self.liquidity_sweep_analyzer = LiquiditySweepAnalyzer(swing_window=3, lookback_sweep_bars=6)
+        self.retest_analyzer = PriceActionRetestAnalyzer(swing_window_5m=3, swing_window_1h=3)
         self.notifier = TelegramAlertSender(cooldown_seconds=1800)
+        self.whatsapp_notifier = WhatsAppAlertSender(cooldown_seconds=1800)
 
         # Active strategy state
-        self.active_strategy_id: str = "smc"
-        self.is_deployed_active: bool = False
+        self.active_strategy_id: str = "liquidity_sweep"
+        self.is_deployed_active: bool = True
 
         # Evaluation audit history
         self.history: List[StrategyAnalysisResponse] = []
 
         # Available Strategy Catalog
         self._strategies_meta: Dict[str, Dict[str, Any]] = {
+            "liquidity_sweep": {
+                "id": "liquidity_sweep",
+                "name": "Liquidity Sweep Strategy (1:3 RR)",
+                "category": "Stop-Hunt & Reclaim (Price Action)",
+                "description": "Detects Support (SSL) & Resistance (BSL) Liquidity Sweeps with Rejection Pin Bar / Pause Candle break confirmation, 1H HTF alignment, and minimum 1:3 RR.",
+                "timeframes": ["5m", "15m", "1h"],
+                "parameters": {
+                    "min_risk_reward": 3.0,
+                    "partial_tp_rr": 2.0,
+                    "require_1h_alignment": True,
+                    "swing_window": 3
+                }
+            },
+            "funded_retest_scalper": {
+                "id": "funded_retest_scalper",
+                "name": "Price Action Retest Scalper (5M BOS + Retest | 1:2 RR)",
+                "category": "Price Action & Market Structure (Funded Trader)",
+                "description": "Zero indicators. 1H Trend Direction + 5M Break of Structure (BOS) + Retest / Pullback + Rejection Wick / Engulfing confirmation with 1:2 Risk-to-Reward.",
+                "timeframes": ["5m", "15m", "1h"],
+                "parameters": {
+                    "min_risk_reward": 2.0,
+                    "entry_timeframe": "5m",
+                    "trend_timeframe": "1h",
+                    "require_retest": True
+                }
+            },
             "smc": {
                 "id": "smc",
                 "name": "Smart Money Concepts (SMC)",
@@ -231,7 +263,7 @@ class StrategyManager:
                 }
             }
         }
-        logger.info("Initialized StrategyManager with 4 modular algorithmic strategies.")
+        logger.info("Initialized StrategyManager with 5 modular algorithmic strategies (default: liquidity_sweep).")
 
     def list_strategies(self) -> List[StrategyInfo]:
         """Return list of all registered strategies with active state."""
@@ -312,7 +344,65 @@ class StrategyManager:
         # ====================================================================
         # STEP B: Evaluate Active Strategy with Global Sniper Mode Gate
         # ====================================================================
-        if sid == "smc":
+        sweep_signal = None
+        if sid == "liquidity_sweep":
+            eval_res = self.liquidity_sweep_analyzer.evaluate(
+                candles_ltf=candles_ltf,
+                candles_htf=candles_1h,
+                symbol=symbol,
+                timeframe=timeframe,
+                allow_counter_trend=not strat_meta["parameters"].get("require_1h_alignment", True),
+            )
+            has_entry = eval_res.has_valid_setup
+            sweep_signal = eval_res.signal
+            checklist = [
+                ConfluenceCheckItem(name=n, status="PASSED" if p else "WAITING", description=d)
+                for (n, p, d) in eval_res.checklist
+            ]
+            passed_cnt = sum(1 for _, p, _ in eval_res.checklist if p)
+            score = int((passed_cnt / max(1, len(eval_res.checklist))) * 100)
+            wait_reasons = eval_res.wait_reasons
+            if has_entry and sweep_signal:
+                entry_zone = EntryZone(
+                    action=sweep_signal.action,
+                    entry=sweep_signal.entry_price,
+                    stop_loss=sweep_signal.stop_loss,
+                    take_profit_1=sweep_signal.tp_1_2rr,
+                    take_profit_2=sweep_signal.tp_1_3rr,
+                    risk_reward_ratio=sweep_signal.risk_reward_ratio,
+                    invalidation_level=sweep_signal.stop_loss,
+                )
+            else:
+                entry_zone = None
+        elif sid == "funded_retest_scalper":
+            eval_res = self.retest_analyzer.evaluate(
+                candles_5m=candles_ltf,
+                candles_1h=candles_1h,
+                symbol=symbol,
+                timeframe=timeframe,
+            )
+            has_entry = eval_res.has_valid_setup
+            retest_sig = eval_res.signal
+            checklist = [
+                ConfluenceCheckItem(name=n, status="PASSED" if p else "WAITING", description=d)
+                for (n, p, d) in eval_res.checklist
+            ]
+            passed_cnt = sum(1 for _, p, _ in eval_res.checklist if p)
+            score = int((passed_cnt / max(1, len(eval_res.checklist))) * 100)
+            wait_reasons = eval_res.wait_reasons
+            if has_entry and retest_sig:
+                entry_zone = EntryZone(
+                    action=retest_sig.action,
+                    entry=retest_sig.entry_price,
+                    stop_loss=retest_sig.stop_loss,
+                    take_profit_1=retest_sig.tp_1_2rr,
+                    take_profit_2=retest_sig.tp_1_2rr,
+                    risk_reward_ratio=retest_sig.risk_reward_ratio,
+                    invalidation_level=retest_sig.stop_loss,
+                )
+            else:
+                entry_zone = None
+        elif sid == "smc":
             has_entry, entry_zone, score, checklist, wait_reasons = self._eval_smc(
                 candles_ltf, candles_1h, candles_4h, structure_ltf, structure_1h, structure_4h, strat_meta["parameters"]
             )
@@ -340,7 +430,7 @@ class StrategyManager:
             status_message = f"SNIPER A+ {action_text} SETUP CONFIRMED (100% Confluence)"
 
         # ====================================================================
-        # Telegram Anti-Spam Cooldown & Notification
+        # WhatsApp & Telegram Anti-Spam Cooldown & Notification
         # ====================================================================
         telegram_status = TelegramDispatchStatus(
             alert_sent=False,
@@ -350,6 +440,24 @@ class StrategyManager:
         )
 
         if has_entry and entry_zone:
+            if sweep_signal:
+                self.whatsapp_notifier.send_liquidity_sweep_alert(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    action=sweep_signal.action,
+                    sweep_type=sweep_signal.sweep_type,
+                    swept_level=sweep_signal.swept_level,
+                    sweep_extreme=sweep_signal.sweep_extreme,
+                    confirmation_type=sweep_signal.confirmation_type,
+                    entry_price=sweep_signal.entry_price,
+                    stop_loss=sweep_signal.stop_loss,
+                    tp_1_2rr=sweep_signal.tp_1_2rr,
+                    tp_1_3rr=sweep_signal.tp_1_3rr,
+                    htf_bias=sweep_signal.htf_bias,
+                    rr_ratio=sweep_signal.risk_reward_ratio,
+                    notes=sweep_signal.psychology_note,
+                )
+
             fp = self.notifier.get_setup_fingerprint(
                 symbol=symbol,
                 strategy_id=sid,
@@ -366,7 +474,11 @@ class StrategyManager:
                     message=f"Alert suppressed: Cooldown active ({int(remaining)}s left)"
                 )
             else:
-                trigger_desc = f"Sniper A+ Setup: {strat_meta['name']} verified with Sweep, CHoCH, Deep Mitigation, and 1H/4H ({structure_1h.directional_bias}/{structure_4h.directional_bias}) alignment."
+                trigger_desc = (
+                    sweep_signal.psychology_note
+                    if sweep_signal
+                    else f"Sniper A+ Setup: {strat_meta['name']} verified with Sweep, CHoCH, Deep Mitigation, and 1H/4H ({structure_1h.directional_bias}/{structure_4h.directional_bias}) alignment."
+                )
                 sent, msg_text = self.notifier.send_strategy_execution_alert(
                     symbol=symbol,
                     strategy_name=strat_meta["name"],

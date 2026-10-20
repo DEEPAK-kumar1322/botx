@@ -1,35 +1,54 @@
 /* ==========================================================================
-   BotX Modern Dark-Mode Trading Dashboard Stylesheet
-   Fonts: 'Syne' (Headers), 'Plus Jakarta Sans' (Body)
+   BotX Modern Trading Terminal Stylesheet
+   Design Philosophy: Binance Pro (Deep Black & Gold/Yellow) + Deeepr.ai Rotating Beam Fusion
+   Fonts: 'Syne' (Headers), 'Plus Jakarta Sans' (Body), 'JetBrains Mono' (Numbers)
    ========================================================================== */
 
 :root {
-  --bg-body: #0a0d14;
-  --bg-surface: #0f141f;
-  --bg-card: #151c2c;
-  --bg-card-hover: #1c2538;
+  /* Binance Official Theme Palette (Deep Black, Charcoal & Gold/Yellow) */
+  --bg-body: #0b0e11;
+  --bg-surface: #12161c;
+  --bg-card: rgba(24, 26, 32, 0.92);
+  --bg-card-hover: rgba(30, 35, 41, 0.98);
+  --bg-elevated: #1e2329;
   
-  --border-color: #1e283d;
-  --border-active: #00f2fe;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-light: rgba(255, 255, 255, 0.14);
+  --border-active: #F0B90B;
+  --border-glow: 0 0 18px rgba(240, 185, 11, 0.35);
 
-  --primary-accent: #00f2fe;
-  --primary-gradient: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+  /* Binance Signature Yellow Accents */
+  --primary-accent: #F0B90B;
+  --secondary-accent: #FCD535;
+  --primary-gradient: linear-gradient(135deg, #F0B90B 0%, #FCD535 100%);
+  --accent-glow: 0 0 25px rgba(240, 185, 11, 0.45);
   
-  --accent-bullish: #00e676;
-  --accent-bearish: #ff3366;
-  --accent-warning: #ffb300;
-  --accent-info: #29b6f6;
+  /* Binance Trading Colors */
+  --accent-bullish: #0ECB81;
+  --accent-bullish-glow: 0 0 16px rgba(14, 203, 129, 0.45);
+  --accent-bearish: #F6465D;
+  --accent-bearish-glow: 0 0 16px rgba(246, 70, 93, 0.45);
+  --accent-warning: #F0B90B;
+  --accent-info: #F0B90B;
 
-  --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
+  --text-main: #EAECEF;
+  --text-muted: #848E9C;
+  --text-dim: #5E6673;
 
-  --sidebar-left-width: 270px;
-  --sidebar-right-width: 360px;
+  --sidebar-left-width: 280px;
+  --sidebar-right-width: 380px;
   --header-height: 56px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 }
 
-/* Typography Hierarchy */
+/* ─── BASE & TYPOGRAPHY ─── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg-body);
@@ -37,6 +56,22 @@ body {
   height: 100vh;
   margin: 0;
   user-select: none;
+  overflow: hidden;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle background cyber grid */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(240, 185, 11, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(240, 185, 11, 0.015) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
 }
 
 h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
@@ -44,94 +79,291 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   letter-spacing: -0.02em;
 }
 
-/* Utilities */
-.letter-spacing-1 {
-  letter-spacing: 0.08em;
+.font-monospace {
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace !important;
+  font-variant-numeric: tabular-nums;
 }
+
+.letter-spacing-1 { letter-spacing: 0.08em; }
 .fs-7 { font-size: 0.85rem !important; }
 .fs-8 { font-size: 0.75rem !important; }
 .fs-9 { font-size: 0.68rem !important; }
 
 .bg-dark-surface {
   background-color: var(--bg-surface) !important;
+  backdrop-filter: blur(20px);
 }
 .bg-dark-card {
   background-color: var(--bg-card) !important;
+  backdrop-filter: blur(16px);
 }
 .text-primary-accent {
   color: var(--primary-accent) !important;
 }
-.btn-primary-accent {
-  background: var(--primary-gradient);
-  border: none;
-  color: #050b14 !important;
-  transition: all 0.2s ease;
-}
-.btn-primary-accent:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 0 14px rgba(0, 242, 254, 0.4);
+
+/* ─── SIGNATURE ROTATING BEAMWRAP (Binance Gold Glow) ─── */
+.beamwrap {
+  position: relative;
+  border-radius: var(--radius-md);
+  padding: 1px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-/* Header & Brand */
+.beamwrap::before {
+  content: '';
+  position: absolute;
+  inset: -100%;
+  background: conic-gradient(from 0deg, transparent 0%, #F0B90B 25%, transparent 50%, #FCD535 75%, transparent 100%);
+  animation: beamRotate 5s linear infinite;
+  pointer-events: none;
+}
+
+.beamwrap:hover {
+  box-shadow: 0 12px 35px -5px rgba(240, 185, 11, 0.3);
+}
+
+.beamin {
+  position: relative;
+  z-index: 1;
+  background: var(--bg-elevated);
+  border-radius: calc(var(--radius-md) - 1px);
+  height: 100%;
+  width: 100%;
+  backdrop-filter: blur(20px);
+}
+
+@keyframes beamRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ─── VERDICT PILL ─── */
+.verdict-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-monospace);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(14, 203, 129, 0.15);
+  border: 1px solid rgba(14, 203, 129, 0.45);
+  color: #0ECB81;
+  box-shadow: var(--accent-bullish-glow);
+  text-transform: uppercase;
+}
+
+.verdict-pill.short {
+  background: rgba(246, 70, 93, 0.15);
+  border-color: rgba(246, 70, 93, 0.45);
+  color: #F6465D;
+  box-shadow: var(--accent-bearish-glow);
+}
+
+.verdict-pill.wait {
+  background: rgba(240, 185, 11, 0.15);
+  border-color: rgba(240, 185, 11, 0.45);
+  color: #F0B90B;
+  box-shadow: 0 0 16px rgba(240, 185, 11, 0.4);
+}
+
+.verdict-pill.pulse {
+  animation: verdictPulse 2s infinite;
+}
+
+@keyframes verdictPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(0.98); }
+}
+
+/* 4-Lane Mini Rows in Widget */
+.lane-mini-row {
+  transition: background 0.15s ease;
+}
+.lane-mini-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lane-mini-ic {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  font-family: var(--font-monospace);
+}
+.lane-mini-ic.lane-t { background: rgba(240, 185, 11, 0.15); color: #F0B90B; border: 1px solid rgba(240, 185, 11, 0.35); }
+.lane-mini-ic.lane-p { background: rgba(252, 213, 53, 0.15); color: #FCD535; border: 1px solid rgba(252, 213, 53, 0.35); }
+.lane-mini-ic.lane-f { background: rgba(14, 203, 129, 0.15); color: #0ECB81; border: 1px solid rgba(14, 203, 129, 0.35); }
+.lane-mini-ic.lane-m { background: rgba(240, 185, 11, 0.15); color: #F0B90B; border: 1px solid rgba(240, 185, 11, 0.35); }
+
+.status-chip {
+  font-family: var(--font-monospace);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.status-chip.st-pos { background: rgba(14, 203, 129, 0.15); color: #0ECB81; border: 1px solid rgba(14, 203, 129, 0.35); }
+.status-chip.st-neg { background: rgba(246, 70, 93, 0.15); color: #F6465D; border: 1px solid rgba(246, 70, 93, 0.35); }
+.status-chip.st-neu { background: rgba(240, 185, 11, 0.15); color: #F0B90B; border: 1px solid rgba(240, 185, 11, 0.35); }
+
+/* ─── TOP NAVIGATION & TICKER ─── */
+header.navbar {
+  height: var(--header-height);
+  background: rgba(11, 14, 17, 0.95) !important;
+  backdrop-filter: blur(24px) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  position: relative;
+  z-index: 100;
+}
+
 .brand-logo-icon {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
   background: var(--primary-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #050b14;
-  font-size: 1.1rem;
-}
-.brand-title {
-  font-size: 1.3rem;
-  font-weight: 800;
-  color: #ffffff;
+  color: #12161c;
+  font-size: 1.15rem;
+  box-shadow: 0 0 15px rgba(240, 185, 11, 0.4);
 }
 
+.brand-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+/* Nav View Switcher (Terminal vs Hub) */
+.nav-view-switcher {
+  background: rgba(18, 22, 28, 0.85);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.view-switch-btn {
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+}
+.view-switch-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.04);
+}
+.view-switch-btn.active {
+  color: #12161c !important;
+  background: var(--primary-gradient) !important;
+  font-weight: 700;
+  box-shadow: 0 0 15px rgba(240, 185, 11, 0.3);
+}
+.view-switch-btn.active i {
+  color: #12161c !important;
+}
+
+/* Continuous Marquee Ticker Tape */
+.top-ticker-tape {
+  flex: 1;
+  max-width: 520px;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.ticker-track-anim {
+  display: inline-flex;
+  gap: 22px;
+  animation: tickerScroll 35s linear infinite;
+}
+.ticker-track-anim:hover {
+  animation-play-state: paused;
+}
+
+@keyframes tickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-pill-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.ticker-pill-item .sym { font-weight: 700; color: #fff; }
+.ticker-pill-item .val { font-family: var(--font-monospace); font-weight: 600; color: #EAECEF; }
+.ticker-pill-item .chg { font-family: var(--font-monospace); font-size: 10px; padding: 1px 5px; border-radius: 3px; }
+.ticker-pill-item .chg.pos { color: #0ECB81; background: rgba(14, 203, 129, 0.12); }
+.ticker-pill-item .chg.neg { color: #F6465D; background: rgba(246, 70, 93, 0.12); }
+
+/* WhatsApp Status Pill */
 .telegram-status-pill {
-  background-color: rgba(41, 182, 246, 0.1);
-  border: 1px solid rgba(41, 182, 246, 0.25);
+  background: rgba(240, 185, 11, 0.08);
+  border: 1px solid rgba(240, 185, 11, 0.25);
+  box-shadow: 0 0 12px rgba(240, 185, 11, 0.15);
 }
 
 .pulse-indicator {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   background-color: var(--accent-bullish);
   border-radius: 50%;
-  box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7);
+  box-shadow: 0 0 10px var(--accent-bullish);
   animation: pulse-green 2s infinite;
 }
 
 @keyframes pulse-green {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 230, 118, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); }
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(14, 203, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(14, 203, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(14, 203, 129, 0); }
 }
 
-/* Main Dashboard Viewport */
+/* ─── MAIN DASHBOARD VIEWPORT ─── */
 .dashboard-viewport {
   height: calc(100vh - var(--header-height));
   width: 100vw;
+  position: relative;
+  z-index: 1;
 }
 
-/* Left Sidebar */
+/* ─── LEFT SIDEBAR (WATCHLIST) ─── */
 .sidebar-left {
   width: var(--sidebar-left-width);
   min-width: var(--sidebar-left-width);
   height: 100%;
+  background-color: var(--bg-surface);
+  border-right: 1px solid var(--border-color) !important;
+}
+
+.market-category-card {
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .category-header {
   cursor: pointer;
   background-color: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  transition: background 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: all 0.2s ease;
 }
 .category-header:hover {
   background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 .category-header[aria-expanded="true"] .chevron-icon {
   transform: rotate(180deg);
@@ -146,7 +378,7 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   border: 1px solid transparent !important;
   border-radius: 6px !important;
   padding: 8px 10px;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   transition: all 0.15s ease;
 }
 .asset-item:hover {
@@ -154,28 +386,193 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   border-color: var(--border-color) !important;
 }
 .asset-item.active {
-  background-color: rgba(0, 242, 254, 0.08) !important;
-  border-color: rgba(0, 242, 254, 0.35) !important;
+  background: rgba(240, 185, 11, 0.08) !important;
+  border-color: rgba(240, 185, 11, 0.4) !important;
+  box-shadow: 0 0 16px rgba(240, 185, 11, 0.15);
 }
-.asset-item.active span {
+.asset-item.active span.fw-bold {
   color: var(--primary-accent) !important;
 }
 
-/* Center Content & TradingView Wrapper */
+.sidebar-footer {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+/* ─── CENTER CONTAINER & TRADINGVIEW CHART ─── */
 .main-content-center {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
-}
-.chart-header-bar {
-  min-height: 48px;
-}
-.tradingview-wrapper {
-  width: 100%;
-  height: 100%;
   background-color: var(--bg-body);
 }
 
-/* Right Sidebar: Live Trading & SMC Terminal */
+/* Clean Single-Row Chart Header Bar (No Wrapping!) */
+.chart-header-bar {
+  height: 46px;
+  min-height: 46px;
+  max-height: 46px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color) !important;
+  overflow: hidden;
+  z-index: 5;
+}
+
+/* Timeframe Selector Pills (Binance Style) */
+.btn-tf {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+.btn-tf:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.06);
+}
+.btn-tf.active {
+  background: rgba(240, 185, 11, 0.15) !important;
+  border-color: rgba(240, 185, 11, 0.5) !important;
+  color: #F0B90B !important;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(240, 185, 11, 0.2);
+}
+
+/* Real-Time Market Structure Strip (Single Row, No Overlap!) */
+.chart-metrics-strip {
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color) !important;
+  font-size: 11px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  z-index: 4;
+}
+
+.badge-bullish {
+  background: rgba(14, 203, 129, 0.15);
+  border: 1px solid rgba(14, 203, 129, 0.4);
+  color: #0ECB81;
+}
+.badge-bearish {
+  background: rgba(246, 70, 93, 0.15);
+  border: 1px solid rgba(246, 70, 93, 0.4);
+  color: #F6465D;
+}
+.badge-ranging {
+  background: rgba(240, 185, 11, 0.15);
+  border: 1px solid rgba(240, 185, 11, 0.4);
+  color: #F0B90B;
+}
+
+/* Live Position HUD Banner (Binance & Deeepr.ai Fusion) */
+.position-hud-banner {
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  flex-shrink: 0;
+  background: linear-gradient(90deg, rgba(240, 185, 11, 0.08), rgba(18, 22, 28, 0.95));
+  border-bottom: 1px solid rgba(240, 185, 11, 0.25) !important;
+  position: relative;
+  z-index: 10;
+}
+
+.hud-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0ECB81;
+  box-shadow: 0 0 10px #0ECB81;
+}
+
+/* TradingView Flexbox Container (Fills exact remaining height, zero overlap) */
+.tradingview-wrapper {
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto !important;
+  width: 100%;
+  background-color: var(--bg-body);
+  position: relative;
+  overflow: hidden;
+}
+
+#tv_chart_container {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Floating Target Chips on Chart */
+.chart-floating-overlay {
+  position: absolute;
+  top: 10px;
+  right: 65px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.chip-floating {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(18, 22, 28, 0.88);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  font-size: 11.5px;
+}
+
+.chip-floating.chip-tp {
+  border-color: rgba(14, 203, 129, 0.4);
+  box-shadow: 0 0 15px rgba(14, 203, 129, 0.2);
+}
+.chip-floating.chip-tp .chip-key {
+  font-weight: 800;
+  color: #0ECB81;
+}
+.chip-floating.chip-tp .chip-val {
+  color: #0ECB81;
+}
+
+.chip-floating.chip-sl {
+  border-color: rgba(246, 70, 93, 0.4);
+  box-shadow: 0 0 15px rgba(246, 70, 93, 0.2);
+}
+.chip-floating.chip-sl .chip-key {
+  font-weight: 800;
+  color: #F6465D;
+}
+.chip-floating.chip-sl .chip-val {
+  color: #F6465D;
+}
+
+/* ─── RIGHT SIDEBAR (SIGNALS & SMC ALERTS) ─── */
 .sidebar-right {
   width: var(--sidebar-right-width);
   min-width: var(--sidebar-right-width);
@@ -184,622 +581,116 @@ h1, h2, h3, h4, h5, h6, .brand-title, .modal-title {
   flex-direction: column;
   overflow: hidden;
   background-color: var(--bg-surface);
+  border-left: 1px solid var(--border-color) !important;
 }
 
-.alert-card {
+.panel-tabs-header {
+  background: rgba(18, 22, 28, 0.95);
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.panel-tabs-header .nav-link {
+  color: var(--text-muted);
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+.panel-tabs-header .nav-link:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.04);
+}
+.panel-tabs-header .nav-link.active {
+  color: #12161c !important;
+  background: var(--primary-gradient) !important;
+  font-weight: 700;
+  box-shadow: 0 0 15px rgba(240, 185, 11, 0.3);
+}
+.panel-tabs-header .nav-link.active i {
+  color: #12161c !important;
+}
+
+/* Alert & Signal Cards */
+.alert-card, .signal-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: var(--radius-sm);
+  padding: 14px;
   margin-bottom: 12px;
   cursor: pointer;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
 }
-.alert-card:hover {
+.alert-card:hover, .signal-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  border-color: rgba(240, 185, 11, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
-/* Accent Strip by Setup Bias */
-.alert-card::before {
+.alert-card::before, .signal-card::before {
   content: "";
   position: absolute;
   top: 0;
   left: 0;
   bottom: 0;
-  width: 4px;
+  width: 3px;
 }
-.alert-card.bullish::before {
+.alert-card.bullish::before, .signal-card.bullish::before {
   background-color: var(--accent-bullish);
-  box-shadow: 0 0 10px var(--accent-bullish);
+  box-shadow: 0 0 12px var(--accent-bullish);
 }
-.alert-card.bearish::before {
+.alert-card.bearish::before, .signal-card.bearish::before {
   background-color: var(--accent-bearish);
-  box-shadow: 0 0 10px var(--accent-bearish);
+  box-shadow: 0 0 12px var(--accent-bearish);
 }
 
-.badge-fvg {
-  background-color: rgba(0, 242, 254, 0.12);
-  color: var(--primary-accent);
-  border: 1px solid rgba(0, 242, 254, 0.3);
+/* ─── BUTTONS & ACCENTS ─── */
+.btn-primary-accent {
+  background: var(--primary-gradient) !important;
+  border: none !important;
+  color: #12161c !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 15px rgba(240, 185, 11, 0.3);
+  transition: all 0.2s ease;
 }
-.badge-ob {
-  background-color: rgba(255, 179, 0, 0.12);
-  color: var(--accent-warning);
-  border: 1px solid rgba(255, 179, 0, 0.3);
-}
-
-.badge-bullish {
-  background-color: rgba(0, 230, 118, 0.12);
-  color: var(--accent-bullish);
-  border: 1px solid rgba(0, 230, 118, 0.3);
-}
-.badge-bearish {
-  background-color: rgba(255, 51, 102, 0.12);
-  color: var(--accent-bearish);
-  border: 1px solid rgba(255, 51, 102, 0.3);
+.btn-primary-accent:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 0 22px rgba(240, 185, 11, 0.55);
 }
 
-.status-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
+/* Strategy status dot */
+.strategy-status-dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background-color: var(--accent-bullish);
+  background: var(--text-dim);
+  display: inline-block;
+}
+.strategy-status-dot.active {
+  background: var(--accent-bullish);
+  box-shadow: 0 0 8px var(--accent-bullish);
+  animation: pulse-green 1.8s infinite;
 }
 
-/* Custom Scrollbars */
+/* Custom Scrollbars in Binance Yellow Accent */
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.2);
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: rgba(240, 185, 11, 0.2);
   border-radius: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: rgba(240, 185, 11, 0.5);
 }
 
-/* Responsive adjustments */
+/* ─── RESPONSIVE BEHAVIOR ─── */
 @media (max-width: 1200px) {
-  :root {
-    --sidebar-left-width: 230px;
-    --sidebar-right-width: 320px;
-  }
+  .top-ticker-tape { display: none; }
 }
-
 @media (max-width: 992px) {
-  .sidebar-left {
-    position: absolute;
-    z-index: 100;
-    left: -100%;
-    transition: left 0.3s ease;
-  }
-  .sidebar-left.show {
-    left: 0;
-  }
+  .sidebar-left { display: none; }
 }
-
-/* ==========================================================================
-   Terminal Extensions: Strategy Deployment & Market Structure Liquidity
-   ========================================================================== */
-
-/* Strategy Status Indicator Dot */
-.strategy-status-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: #64748b;
-  transition: all 0.3s ease;
-}
-.strategy-status-dot.active {
-  background-color: var(--accent-bullish);
-  box-shadow: 0 0 8px var(--accent-bullish);
-  animation: pulse-green 1.8s infinite;
-}
-
-/* Button Outline Primary Accent */
-.btn-outline-primary-accent {
-  color: var(--primary-accent) !important;
-  border-color: rgba(0, 242, 254, 0.4) !important;
-}
-.btn-outline-primary-accent:hover {
-  background-color: rgba(0, 242, 254, 0.15) !important;
-  border-color: var(--primary-accent) !important;
-  color: #fff !important;
-}
-
-/* Panel Tabs in Right Sidebar */
-.panel-tabs-header {
-  flex-shrink: 0;
-  background-color: var(--bg-card);
-}
-.panel-tabs-header .nav-pills .nav-link {
-  color: var(--text-muted);
-  border-radius: 6px;
-  transition: all 0.15s ease;
-  border: 1px solid transparent;
-}
-.panel-tabs-header .nav-pills .nav-link:hover {
-  color: var(--text-main);
-  background-color: rgba(255, 255, 255, 0.05);
-}
-.panel-tabs-header .nav-pills .nav-link.active {
-  background-color: rgba(0, 242, 254, 0.12);
-  color: var(--primary-accent);
-  border-color: rgba(0, 242, 254, 0.3);
-}
-
-/* Tab Panes Display Logic: Inactive panes strictly display: none */
-.sidebar-right .tab-content {
-  flex: 1 1 0%;
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
-  position: relative;
-  display: block;
-}
-
-.sidebar-right .tab-pane {
-  display: none !important;
-  height: 100%;
-  width: 100%;
-  min-height: 0;
-}
-
-.sidebar-right .tab-pane.active,
-.sidebar-right .tab-pane.show.active {
-  display: flex !important;
-  flex-direction: column;
-  height: 100%;
-  width: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* Pane Headers & Footers: Never shrink, stay fixed at top & bottom */
-.pane-header,
-.alerts-header {
-  flex-shrink: 0;
-  background-color: var(--bg-surface);
-}
-
-.pane-footer,
-.alerts-footer {
-  flex-shrink: 0;
-  background-color: var(--bg-card);
-}
-
-/* Pane Scroll Containers: Start directly below header, smooth scroll */
-.signals-scroll-container,
-.structure-scroll-container,
-.alerts-scroll-container {
-  flex: 1 1 0%;
-  min-height: 0;
-  overflow-y: auto !important;
-  overflow-x: hidden;
-  padding: 16px;
-  scroll-behavior: smooth;
-}
-
-/* Prevent Card Overlap with Header Area */
-.signals-scroll-container > *:first-child,
-.structure-scroll-container > *:first-child,
-.alerts-scroll-container > *:first-child {
-  margin-top: 4px;
-}
-
-/* Real-Time Metrics Sub-Strip below Chart Header */
-.chart-metrics-strip {
-  min-height: 32px;
-  background-color: rgba(15, 20, 31, 0.95);
-  font-size: 0.75rem;
-}
-
-/* Execution Signal Cards */
-.signal-card {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 14px;
-  margin-bottom: 12px;
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-}
-.signal-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-}
-.signal-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 4px;
-}
-.signal-card.buy {
-  border-color: rgba(0, 230, 118, 0.35);
-}
-.signal-card.buy::before {
-  background-color: var(--accent-bullish);
-  box-shadow: 0 0 10px var(--accent-bullish);
-}
-.signal-card.sell {
-  border-color: rgba(255, 51, 102, 0.35);
-}
-.signal-card.sell::before {
-  background-color: var(--accent-bearish);
-  box-shadow: 0 0 10px var(--accent-bearish);
-}
-
-.signal-action-badge {
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-.signal-action-badge.buy {
-  background-color: rgba(0, 230, 118, 0.15);
-  color: var(--accent-bullish);
-  border: 1px solid rgba(0, 230, 118, 0.35);
-}
-.signal-action-badge.sell {
-  background-color: rgba(255, 51, 102, 0.15);
-  color: var(--accent-bearish);
-  border: 1px solid rgba(255, 51, 102, 0.35);
-}
-
-/* Market Structure & Liquidity Elements */
-.structure-card {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 12px;
-}
-
-.swing-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 0.72rem;
-  font-family: monospace;
-  font-weight: 700;
-}
-.swing-chip.hh, .swing-chip.hl {
-  background-color: rgba(0, 230, 118, 0.12);
-  color: var(--accent-bullish);
-  border: 1px solid rgba(0, 230, 118, 0.3);
-}
-.swing-chip.lh, .swing-chip.ll {
-  background-color: rgba(255, 51, 102, 0.12);
-  color: var(--accent-bearish);
-  border: 1px solid rgba(255, 51, 102, 0.3);
-}
-
-.badge-bsl {
-  background-color: rgba(255, 51, 102, 0.12);
-  color: #ff5277;
-  border: 1px solid rgba(255, 51, 102, 0.3);
-}
-.badge-ssl {
-  background-color: rgba(0, 230, 118, 0.12);
-  color: #00e676;
-  border: 1px solid rgba(0, 230, 118, 0.3);
-}
-.badge-ranging {
-  background-color: rgba(255, 179, 0, 0.12);
-  color: var(--accent-warning);
-  border: 1px solid rgba(255, 179, 0, 0.3);
-}
-
-.liquidity-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px;
-  border-radius: 4px;
-  background-color: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  margin-bottom: 6px;
-  font-family: monospace;
-  font-size: 0.75rem;
-}
-.liquidity-row:hover {
-  background-color: rgba(255, 255, 255, 0.04);
-}
-
-/* ==========================================================================
-   Modular Strategy Hub Page Styles
-   ========================================================================== */
-
-/* Navbar View Switcher */
-.view-switch-btn {
-  color: var(--text-muted);
-  border: 1px solid transparent;
-  transition: all 0.2s ease;
-  border-radius: 6px;
-}
-.view-switch-btn:hover {
-  color: #ffffff;
-  background-color: rgba(255, 255, 255, 0.05);
-}
-.view-switch-btn.active {
-  color: #050b14 !important;
-  background: var(--primary-gradient) !important;
-  border-color: var(--primary-accent);
-  box-shadow: 0 0 10px rgba(0, 242, 254, 0.35);
-  font-weight: 700;
-}
-.view-switch-btn.active .badge {
-  background-color: #050b14 !important;
-  color: var(--primary-accent) !important;
-}
-
-/* Strategy Hub Header & Icon Badge */
-.hub-header-banner {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-}
-
-.hub-icon-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--primary-gradient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
-  flex-shrink: 0;
-}
-
-/* Strategy Selection Cards Container & Track */
-#hubStrategiesCardsContainer,
-.hub-strategies-track {
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  gap: 16px !important;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  padding: 4px 2px 14px 2px !important;
-  margin: 0 !important;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Custom scrollbar for strategy cards track */
-#hubStrategiesCardsContainer::-webkit-scrollbar {
-  height: 6px;
-}
-#hubStrategiesCardsContainer::-webkit-scrollbar-track {
-  background: rgba(15, 20, 31, 0.6);
-  border-radius: 4px;
-}
-#hubStrategiesCardsContainer::-webkit-scrollbar-thumb {
-  background: #1e283d;
-  border-radius: 4px;
-}
-#hubStrategiesCardsContainer::-webkit-scrollbar-thumb:hover {
-  background: var(--primary-accent);
-}
-
-.hub-strategy-card-wrapper,
-.hub-strategy-col {
-  flex: 0 0 310px !important;
-  min-width: 290px !important;
-  max-width: 350px !important;
-  width: 310px !important;
-  box-sizing: border-box !important;
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-/* Strategy Selection Cards */
-.hub-strategy-card {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 18px;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.22s ease-in-out;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: space-between;
-  height: 100%;
-  min-height: 260px;
-  width: 100%;
-  box-sizing: border-box;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: normal;
-  word-break: break-word;
-}
-.hub-strategy-card:hover {
-  transform: translateY(-3px);
-  border-color: rgba(0, 242, 254, 0.45);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
-.hub-strategy-card.selected {
-  border-color: var(--primary-accent);
-  box-shadow: 0 0 16px rgba(0, 242, 254, 0.25), inset 0 0 10px rgba(0, 242, 254, 0.05);
-  background-color: rgba(15, 20, 31, 0.95);
-}
-.hub-strategy-card.deployed-active {
-  border-left: 4px solid var(--accent-bullish);
-}
-
-.hub-strategy-card h4 {
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: normal;
-  word-break: break-word;
-  line-height: 1.25;
-  margin: 0;
-}
-
-.hub-strategy-card p {
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: normal;
-  word-break: break-word;
-  line-height: 1.45;
-  color: var(--text-muted);
-}
-
-.hub-strategy-card .strat-icon-box {
-  width: 38px;
-  height: 38px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.15rem;
-  flex-shrink: 0;
-}
-
-/* Parameter Pill in Strategy Card */
-.param-pill {
-  display: inline-block;
-  background-color: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  padding: 3px 7px;
-  font-size: 0.68rem;
-  font-family: monospace;
-  color: var(--text-muted);
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: normal;
-}
-
-/* Analysis Results Section Cards */
-.hub-result-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-}
-
-/* Step A Structure Summary Card */
-.step-structure-card {
-  border-left: 4px solid var(--accent-info);
-}
-
-/* High-Probability Valid Entry Card */
-.entry-confirmed-card {
-  border: 1px solid rgba(0, 230, 118, 0.5) !important;
-  border-left: 5px solid var(--accent-bullish) !important;
-  background: linear-gradient(180deg, rgba(0, 230, 118, 0.05) 0%, rgba(15, 20, 31, 0.95) 100%);
-  box-shadow: 0 0 20px rgba(0, 230, 118, 0.2);
-}
-
-/* Strict Wait State Card */
-.wait-state-card {
-  border: 1px solid rgba(255, 179, 0, 0.45) !important;
-  border-left: 5px solid var(--accent-warning) !important;
-  background: linear-gradient(180deg, rgba(255, 179, 0, 0.04) 0%, rgba(15, 20, 31, 0.95) 100%);
-  box-shadow: 0 0 18px rgba(255, 179, 0, 0.12);
-}
-
-.wait-state-badge {
-  font-size: 0.95rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  padding: 8px 16px;
-  border-radius: 8px;
-  background-color: rgba(255, 179, 0, 0.15);
-  border: 1px solid rgba(255, 179, 0, 0.5);
-  color: #ffca28;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Confluence Checklist Items */
-.confluence-list-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background-color: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  margin-bottom: 6px;
-  transition: background-color 0.15s ease;
-}
-.confluence-list-item:hover {
-  background-color: rgba(255, 255, 255, 0.04);
-}
-
-.confluence-pill {
-  font-size: 0.7rem;
-  font-weight: 700;
-  font-family: monospace;
-  padding: 3px 8px;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.confluence-pill.passed {
-  background-color: rgba(0, 230, 118, 0.15);
-  color: var(--accent-bullish);
-  border: 1px solid rgba(0, 230, 118, 0.35);
-}
-.confluence-pill.waiting {
-  background-color: rgba(255, 179, 0, 0.15);
-  color: var(--accent-warning);
-  border: 1px solid rgba(255, 179, 0, 0.35);
-}
-
-/* Wait Reasons Box */
-.wait-reasons-box {
-  background-color: rgba(255, 179, 0, 0.06);
-  border: 1px solid rgba(255, 179, 0, 0.2);
-  border-radius: 8px;
-  padding: 12px;
-}
-
-/* Telegram Anti-Spam Pill */
-.anti-spam-badge {
-  font-size: 0.72rem;
-  font-family: monospace;
-  border-radius: 4px;
-  padding: 3px 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.anti-spam-badge.sent {
-  background-color: rgba(0, 230, 118, 0.12);
-  color: var(--accent-bullish);
-  border: 1px solid rgba(0, 230, 118, 0.3);
-}
-.anti-spam-badge.cooldown {
-  background-color: rgba(41, 182, 246, 0.12);
-  color: var(--accent-info);
-  border: 1px solid rgba(41, 182, 246, 0.3);
-}
-.anti-spam-badge.wait {
-  background-color: rgba(148, 163, 184, 0.12);
-  color: var(--text-muted);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-

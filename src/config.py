@@ -16,6 +16,7 @@ class EngineConfig(BaseModel):
     exchange_id: str = Field(default_factory=lambda: os.getenv("EXCHANGE_ID", "binance"))
     api_key: Optional[str] = Field(default_factory=lambda: os.getenv("EXCHANGE_API_KEY", ""))
     api_secret: Optional[str] = Field(default_factory=lambda: os.getenv("EXCHANGE_API_SECRET", ""))
+    exchange_sandbox: bool = Field(default_factory=lambda: os.getenv("EXCHANGE_SANDBOX", "true").lower() in ("true", "1", "yes"))
     default_symbol: str = Field(default_factory=lambda: os.getenv("DEFAULT_SYMBOL", "BTC/USDT"))
     default_timeframe: str = Field(default_factory=lambda: os.getenv("DEFAULT_TIMEFRAME", "1m"))
     log_level: str = Field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
@@ -25,5 +26,12 @@ class EngineConfig(BaseModel):
     telegram_chat_id: Optional[str] = Field(default_factory=lambda: os.getenv("TELEGRAM_CHAT_ID", ""))
     telegram_enabled: bool = Field(default_factory=lambda: os.getenv("TELEGRAM_ENABLED", "true").lower() in ("true", "1", "yes"))
 
+    # WhatsApp Notification Settings (CallMeBot / Webhook)
+    whatsapp_enabled: bool = Field(default_factory=lambda: os.getenv("WHATSAPP_ENABLED", "true").lower() in ("true", "1", "yes"))
+    whatsapp_phone: Optional[str] = Field(default_factory=lambda: os.getenv("WHATSAPP_PHONE", ""))
+    whatsapp_api_key: Optional[str] = Field(default_factory=lambda: os.getenv("WHATSAPP_API_KEY", ""))
+    whatsapp_webhook_url: Optional[str] = Field(default_factory=lambda: os.getenv("WHATSAPP_WEBHOOK_URL", ""))
+
 
 config = EngineConfig()
+

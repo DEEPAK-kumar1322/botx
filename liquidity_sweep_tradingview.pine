@@ -1,0 +1,323 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0
+// © BotX Algorithmic Trading Engine — A+ Liquidity Sweep Strategy [1:3 RR]
+
+//@version=5
+indicator("BotX A+ Liquidity Sweep & Reclaim [1:3 RR]", shorttitle="BotX Sweep [1:3 RR]", overlay=true, max_lines_count=500, max_boxes_count=500, max_labels_count=500)
+
+// ============================================================================
+// 1. USER INPUTS & SETTINGS
+// ============================================================================
+grp_struct      = "1. Liquidity Structure (Support / Resistance)"
+pivotLen        = input.int(5, "Major Swing Pivot Length (Left/Right)", minval=2, maxval=20, group=grp_struct)
+maxLevels       = input.int(10, "Max Active Unswept Levels to Track", minval=3, maxval=30, group=grp_struct)
+minPierceAtr    = input.float(0.05, "Min Sweep Pierce Depth (x ATR)", minval=0.01, step=0.01, group=grp_struct)
+
+grp_conf        = "2. Sweep Confirmation & Anti-Spam"
+confirmMode     = input.string("Both (Pin Bar + Pause Break)", "Confirmation Mode", options=["Both (Pin Bar + Pause Break)", "Pin Bar Rejection Only", "Pause Candle Break Only"], group=grp_conf)
+minWickRatio    = input.float(0.45, "Min Rejection Wick Ratio (0.45 = 45%)", minval=0.25, maxval=0.80, step=0.05, group=grp_conf)
+cooldownBars    = input.int(12, "Anti-Spam Cooldown Bars Between Signals", minval=3, maxval=100, group=grp_conf)
+confirmedOnly   = input.bool(true, "Wait for Candle Close (Zero Repaint)", group=grp_conf)
+
+grp_htf         = "3. Higher Timeframe (HTF) Filter"
+useHtfFilter    = input.bool(true, "Enable Strict HTF Trend Alignment", group=grp_htf)
+htfTf           = input.timeframe("60", "Higher Timeframe (Default: 1H)", group=grp_htf)
+
+grp_rr          = "4. Risk Management & Visuals (1:2 & 1:3 RR)"
+slAtrBuffer     = input.float(0.15, "SL Buffer Beyond Sweep Wick (x ATR)", minval=0.02, step=0.05, group=grp_rr)
+rrTarget1       = input.float(2.0, "Target 1 Risk:Reward (Safe Partial)", minval=1.0, step=0.5, group=grp_rr)
+rrTarget2       = input.float(3.0, "Target 2 Risk:Reward (Main Target)", minval=1.5, step=0.5, group=grp_rr)
+boxWidthBars    = input.int(12, "Trade Box Width (Bars)", minval=5, maxval=40, group=grp_rr)
+showTradeBoxes  = input.bool(true, "Draw 1:3 RR Entry / SL / TP Boxes", group=grp_rr)
+showLiqLines    = input.bool(true, "Draw Unswept BSL / SSL Liquidity Lines", group=grp_rr)
+showDashboard   = input.bool(true, "Show Top-Right Institutional Dashboard", group=grp_rr)
+
+// ============================================================================
+// 2. CORE INDICATORS & NON-REPAINTING HTF BIAS
+// ============================================================================
+atrVal = ta.atr(14)
+cRange = math.max(high - low, syminfo.mintick)
+upperWick = high - math.max(open, close)
+lowerWick = math.min(open, close) - low
+upperWickRatio = upperWick / cRange
+lowerWickRatio = lowerWick / cRange
+
+[htfEma20, htfEma50, htfClose] = request.security(syminfo.tickerid, htfTf, [ta.ema(close, 20)[1], ta.ema(close, 50)[1], close[1]], lookahead=barmerge.lookahead_off)
+
+htfBullish = htfClose > htfEma20 and htfEma20 >= htfEma50 * 0.998
+htfBearish = htfClose < htfEma20 and htfEma20 <= htfEma50 * 1.002
+htfBiasStr = htfBullish ? "BULLISH" : (htfBearish ? "BEARISH" : "RANGING")
+
+// ============================================================================
+// 3. TRACK MAJOR UNSWEPT SUPPORT (SSL) & RESISTANCE (BSL) POOLS
+// ============================================================================
+var float[] bslPrices = array.new_float(0)
+var int[]   bslBars   = array.new_int(0)
+var line[]  bslLines  = array.new_line(0)
+
+var float[] sslPrices = array.new_float(0)
+var int[]   sslBars   = array.new_int(0)
+var line[]  sslLines  = array.new_line(0)
+
+ph = ta.pivothigh(high, pivotLen, pivotLen)
+pl = ta.pivotlow(low, pivotLen, pivotLen)
+
+if not na(ph)
+    pivotBar = bar_index - pivotLen
+    array.push(bslPrices, ph)
+    array.push(bslBars, pivotBar)
+    line newLine = na
+    if showLiqLines
+        newLine := line.new(pivotBar, ph, bar_index, ph, color=color.new(color.red, 35), style=line.style_dashed, width=1)
+    array.push(bslLines, newLine)
+    if array.size(bslPrices) > maxLevels
+        array.shift(bslPrices)
+        array.shift(bslBars)
+        oldL = array.shift(bslLines)
+        if not na(oldL)
+            line.delete(oldL)
+
+if not na(pl)
+    pivotBar = bar_index - pivotLen
+    array.push(sslPrices, pl)
+    array.push(sslBars, pivotBar)
+    line newLine = na
+    if showLiqLines
+        newLine := line.new(pivotBar, pl, bar_index, pl, color=color.new(color.teal, 35), style=line.style_dashed, width=1)
+    array.push(sslLines, newLine)
+    if array.size(sslPrices) > maxLevels
+        array.shift(sslPrices)
+        array.shift(sslBars)
+        oldL = array.shift(sslLines)
+        if not na(oldL)
+            line.delete(oldL)
+
+if array.size(bslLines) > 0
+    for i = 0 to array.size(bslLines) - 1
+        ln = array.get(bslLines, i)
+        if not na(ln)
+            line.set_x2(ln, bar_index)
+
+if array.size(sslLines) > 0
+    for i = 0 to array.size(sslLines) - 1
+        ln = array.get(sslLines, i)
+        if not na(ln)
+            line.set_x2(ln, bar_index)
+
+// ============================================================================
+// 4. DETECT LIQUIDITY SWEEPS & PAUSE CANDLE / PIN BAR CONFIRMATION
+// ============================================================================
+var int   lastSignalBar       = -999
+var float pendingBullSweepLvl = na
+var float pendingBullSweepLow = na
+var float pendingBullPauseHi  = na
+var int   pendingBullBar      = -999
+
+var float pendingBearSweepLvl = na
+var float pendingBearSweepHi  = na
+var float pendingBearPauseLo  = na
+var int   pendingBearBar      = -999
+
+var float lastEntry = na
+var float lastSL    = na
+var float lastTP1   = na
+var float lastTP2   = na
+var string lastDir  = "NONE"
+
+canEvaluate = not confirmedOnly or barstate.isconfirmed
+inCooldown  = (bar_index - lastSignalBar) < cooldownBars
+
+bool  freshBullPinBar = false
+float sweptSslLevel   = na
+float sweptSslExtreme = na
+
+if array.size(sslPrices) > 0
+    for i = array.size(sslPrices) - 1 to 0
+        lvl = array.get(sslPrices, i)
+        if low < lvl - (atrVal * minPierceAtr)
+            array.remove(sslPrices, i)
+            array.remove(sslBars, i)
+            ln = array.remove(sslLines, i)
+            if not na(ln)
+                line.set_x2(ln, bar_index)
+                line.set_style(ln, line.style_dotted)
+
+            if close > lvl
+                sweptSslLevel   := lvl
+                sweptSslExtreme := low
+                if lowerWickRatio >= minWickRatio and close >= (low + 0.55 * cRange)
+                    freshBullPinBar := true
+                pendingBullSweepLvl := lvl
+                pendingBullSweepLow := low
+                pendingBullPauseHi  := high
+                pendingBullBar      := bar_index
+        else if close < lvl - (atrVal * 0.5)
+            array.remove(sslPrices, i)
+            array.remove(sslBars, i)
+            ln = array.remove(sslLines, i)
+            if not na(ln)
+                line.delete(ln)
+
+bool  freshBearPinBar = false
+float sweptBslLevel   = na
+float sweptBslExtreme = na
+
+if array.size(bslPrices) > 0
+    for i = array.size(bslPrices) - 1 to 0
+        lvl = array.get(bslPrices, i)
+        if high > lvl + (atrVal * minPierceAtr)
+            array.remove(bslPrices, i)
+            array.remove(bslBars, i)
+            ln = array.remove(bslLines, i)
+            if not na(ln)
+                line.set_x2(ln, bar_index)
+                line.set_style(ln, line.style_dotted)
+
+            if close < lvl
+                sweptBslLevel   := lvl
+                sweptBslExtreme := high
+                if upperWickRatio >= minWickRatio and close <= (high - 0.55 * cRange)
+                    freshBearPinBar := true
+                pendingBearSweepLvl := lvl
+                pendingBearSweepHi  := high
+                pendingBearPauseLo  := low
+                pendingBearBar      := bar_index
+        else if close > lvl + (atrVal * 0.5)
+            array.remove(bslPrices, i)
+            array.remove(bslBars, i)
+            ln = array.remove(bslLines, i)
+            if not na(ln)
+                line.delete(ln)
+
+bool freshBullPauseBreak = false
+if not na(pendingBullSweepLvl) and bar_index > pendingBullBar and (bar_index - pendingBullBar) <= 2
+    if low < pendingBullSweepLow
+        pendingBullSweepLvl := na
+    else if close > pendingBullPauseHi and close > open
+        freshBullPauseBreak := true
+        sweptSslLevel       := pendingBullSweepLvl
+        sweptSslExtreme     := pendingBullSweepLow
+        pendingBullSweepLvl := na
+else if (bar_index - pendingBullBar) > 2
+    pendingBullSweepLvl := na
+
+bool freshBearPauseBreak = false
+if not na(pendingBearSweepLvl) and bar_index > pendingBearBar and (bar_index - pendingBearBar) <= 2
+    if high > pendingBearSweepHi
+        pendingBearSweepLvl := na
+    else if close < pendingBearPauseLo and close < open
+        freshBearPauseBreak := true
+        sweptBslLevel       := pendingBearSweepLvl
+        sweptBslExtreme     := pendingBearSweepHi
+        pendingBearSweepLvl := na
+else if (bar_index - pendingBearBar) > 2
+    pendingBearSweepLvl := na
+
+usePin   = confirmMode == "Both (Pin Bar + Pause Break)" or confirmMode == "Pin Bar Rejection Only"
+usePause = confirmMode == "Both (Pin Bar + Pause Break)" or confirmMode == "Pause Candle Break Only"
+
+bullConfirm = (usePin and freshBullPinBar) or (usePause and freshBullPauseBreak)
+bearConfirm = (usePin and freshBearPinBar) or (usePause and freshBearPauseBreak)
+
+htfAllowLong  = not useHtfFilter or not htfBearish
+htfAllowShort = not useHtfFilter or not htfBullish
+
+validLongSignal  = canEvaluate and not inCooldown and bullConfirm and htfAllowLong
+validShortSignal = canEvaluate and not inCooldown and bearConfirm and htfAllowShort
+
+if validLongSignal
+    pendingBullSweepLvl := na
+if validShortSignal
+    pendingBearSweepLvl := na
+
+// ============================================================================
+// 5. CALCULATE 1:2 & 1:3 RR LEVELS AND DRAW TRADE BOXES
+// ============================================================================
+if validLongSignal
+    lastSignalBar := bar_index
+    entryPrice = close
+    slPrice    = sweptSslExtreme - (atrVal * slAtrBuffer)
+    risk       = math.max(entryPrice - slPrice, syminfo.mintick * 10)
+    tp1Price   = entryPrice + (risk * rrTarget1)
+    tp2Price   = entryPrice + (risk * rrTarget2)
+
+    lastEntry := entryPrice
+    lastSL    := slPrice
+    lastTP1   := tp1Price
+    lastTP2   := tp2Price
+    lastDir   := "LONG (Support Sweep)"
+
+    confirmTxt = freshBullPinBar ? "Pin Bar Wick Reclaim" : "Pause Candle High Break"
+
+    if showTradeBoxes
+        box.new(bar_index, entryPrice, bar_index + boxWidthBars, slPrice, border_color=color.new(color.red, 30), bgcolor=color.new(color.red, 82))
+        box.new(bar_index, tp2Price, bar_index + boxWidthBars, entryPrice, border_color=color.new(color.green, 30), bgcolor=color.new(color.green, 84))
+        line.new(bar_index, tp1Price, bar_index + boxWidthBars, tp1Price, color=color.new(color.lime, 20), style=line.style_dashed, width=1)
+        line.new(bar_index, entryPrice, bar_index + boxWidthBars, entryPrice, color=color.white, width=2)
+
+    longLblTxt = "🟢 A+ LONG (SSL Sweep)\n" + confirmTxt + "\nEntry: " + str.tostring(entryPrice, format.mintick) + "\nSL: " + str.tostring(slPrice, format.mintick) + "\nTP1 (1:2): " + str.tostring(tp1Price, format.mintick) + "\nTP2 (1:3): " + str.tostring(tp2Price, format.mintick)
+    label.new(bar_index, low - (atrVal * 0.4), text=longLblTxt, style=label.style_label_up, color=color.new(#16a34a, 5), textcolor=color.white, size=size.small)
+
+    longAlertTxt = "🟢 BOTX A+ LONG (Support Sweep) | " + syminfo.ticker + " (" + timeframe.period + ") | Swept SSL: " + str.tostring(sweptSslLevel, format.mintick) + " | Entry: " + str.tostring(entryPrice, format.mintick) + " | SL: " + str.tostring(slPrice, format.mintick) + " | TP1 (1:2): " + str.tostring(tp1Price, format.mintick) + " | TP2 (1:3): " + str.tostring(tp2Price, format.mintick)
+    alert(longAlertTxt, alert.freq_once_per_bar_close)
+
+if validShortSignal
+    lastSignalBar := bar_index
+    entryPrice = close
+    slPrice    = sweptBslExtreme + (atrVal * slAtrBuffer)
+    risk       = math.max(slPrice - entryPrice, syminfo.mintick * 10)
+    tp1Price   = entryPrice - (risk * rrTarget1)
+    tp2Price   = entryPrice - (risk * rrTarget2)
+
+    lastEntry := entryPrice
+    lastSL    := slPrice
+    lastTP1   := tp1Price
+    lastTP2   := tp2Price
+    lastDir   := "SHORT (Resistance Sweep)"
+
+    confirmTxt = freshBearPinBar ? "Pin Bar Wick Trap" : "Pause Candle Low Break"
+
+    if showTradeBoxes
+        box.new(bar_index, slPrice, bar_index + boxWidthBars, entryPrice, border_color=color.new(color.red, 30), bgcolor=color.new(color.red, 82))
+        box.new(bar_index, entryPrice, bar_index + boxWidthBars, tp2Price, border_color=color.new(color.green, 30), bgcolor=color.new(color.green, 84))
+        line.new(bar_index, tp1Price, bar_index + boxWidthBars, tp1Price, color=color.new(color.lime, 20), style=line.style_dashed, width=1)
+        line.new(bar_index, entryPrice, bar_index + boxWidthBars, entryPrice, color=color.white, width=2)
+
+    shortLblTxt = "🔴 A+ SHORT (BSL Sweep)\n" + confirmTxt + "\nEntry: " + str.tostring(entryPrice, format.mintick) + "\nSL: " + str.tostring(slPrice, format.mintick) + "\nTP1 (1:2): " + str.tostring(tp1Price, format.mintick) + "\nTP2 (1:3): " + str.tostring(tp2Price, format.mintick)
+    label.new(bar_index, high + (atrVal * 0.4), text=shortLblTxt, style=label.style_label_down, color=color.new(#dc2626, 5), textcolor=color.white, size=size.small)
+
+    shortAlertTxt = "🔴 BOTX A+ SHORT (Resistance Sweep) | " + syminfo.ticker + " (" + timeframe.period + ") | Swept BSL: " + str.tostring(sweptBslLevel, format.mintick) + " | Entry: " + str.tostring(entryPrice, format.mintick) + " | SL: " + str.tostring(slPrice, format.mintick) + " | TP1 (1:2): " + str.tostring(tp1Price, format.mintick) + " | TP2 (1:3): " + str.tostring(tp2Price, format.mintick)
+    alert(shortAlertTxt, alert.freq_once_per_bar_close)
+
+// ============================================================================
+// 6. TOP-RIGHT INSTITUTIONAL DASHBOARD TABLE
+// ============================================================================
+var table dash = table.new(position.top_right, 2, 7, bgcolor=color.new(#0f172a, 10), border_color=color.new(#334155, 30), border_width=1)
+
+if barstate.islast and showDashboard
+    biasCol = htfBullish ? color.new(#22c55e, 15) : (htfBearish ? color.new(#ef4444, 15) : color.new(#eab308, 15))
+    nearestBsl = array.size(bslPrices) > 0 ? array.get(bslPrices, array.size(bslPrices) - 1) : na
+    nearestSsl = array.size(sslPrices) > 0 ? array.get(sslPrices, array.size(sslPrices) - 1) : na
+
+    table.cell(dash, 0, 0, "BotX Liquidity Sweep", text_color=color.white, bgcolor=color.new(#1e293b, 0), text_size=size.small)
+    table.cell(dash, 1, 0, "1:3 RR Sniper", text_color=color.aqua, bgcolor=color.new(#1e293b, 0), text_size=size.small)
+
+    table.cell(dash, 0, 1, "HTF (" + htfTf + ") Bias", text_color=color.silver, text_size=size.tiny)
+    table.cell(dash, 1, 1, htfBiasStr, text_color=color.white, bgcolor=biasCol, text_size=size.tiny)
+
+    table.cell(dash, 0, 2, "Active Resistance (BSL)", text_color=color.silver, text_size=size.tiny)
+    table.cell(dash, 1, 2, not na(nearestBsl) ? str.tostring(nearestBsl, format.mintick) : "Waiting...", text_color=color.red, text_size=size.tiny)
+
+    table.cell(dash, 0, 3, "Active Support (SSL)", text_color=color.silver, text_size=size.tiny)
+    table.cell(dash, 1, 3, not na(nearestSsl) ? str.tostring(nearestSsl, format.mintick) : "Waiting...", text_color=color.lime, text_size=size.tiny)
+
+    table.cell(dash, 0, 4, "Last Valid Signal", text_color=color.silver, text_size=size.tiny)
+    table.cell(dash, 1, 4, lastDir, text_color=color.white, text_size=size.tiny)
+
+    table.cell(dash, 0, 5, "Entry / Stop Loss", text_color=color.silver, text_size=size.tiny)
+    table.cell(dash, 1, 5, not na(lastEntry) ? (str.tostring(lastEntry, format.mintick) + " / " + str.tostring(lastSL, format.mintick)) : "-", text_color=color.white, text_size=size.tiny)
+
+    table.cell(dash, 0, 6, "TP1 (1:2) / TP2 (1:3)", text_color=color.silver, text_size=size.tiny)
+    table.cell(dash, 1, 6, not na(lastTP1) ? (str.tostring(lastTP1, format.mintick) + " / " + str.tostring(lastTP2, format.mintick)) : "-", text_color=color.aqua, text_size=size.tiny)
+
+alertcondition(validLongSignal, title="A+ Support Sweep LONG", message="BotX A+ Support Sweep LONG Confirmed (1:3 RR)")
+alertcondition(validShortSignal, title="A+ Resistance Sweep SHORT", message="BotX A+ Resistance Sweep SHORT Confirmed (1:3 RR)")

@@ -15,10 +15,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.api.server import app
 
-def start_server(host: str = "127.0.0.1", port: int = 8085):
+def start_server(host: str = "0.0.0.0", port: int = 8085):
     print(f"\n=======================================================")
     print(f"  BotX AI Trading Terminal Server")
-    print(f"  Dashboard & API: http://localhost:{port}")
+    print(f"  Dashboard (Local): http://localhost:{port}")
+    print(f"  Dashboard (Phone/Network): http://172.20.10.4:{port}")
     print(f"  Interactive API Docs: http://localhost:{port}/docs")
     print(f"=======================================================\n")
     uvicorn.run("src.api.server:app", host=host, port=port, reload=False, log_level="info")

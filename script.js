@@ -353,6 +353,13 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchStructureAnalysis(state.currentDisplay, state.currentInterval);
   fetchStrategySignals();
   switchRightTab("#pane-signals");
+
+  // Deeepr.ai Live Position & Balance Tracking
+  fetchLivePositionsAndBalance();
+  setInterval(fetchLivePositionsAndBalance, 5000);
+
+  // Live Continuous Marquee Ticker Feed
+  initMarqueeTickerFeed();
 });
 
 
@@ -374,7 +381,7 @@ function initTradingViewWidget(symbol, interval) {
       theme: "dark",
       style: "1",
       locale: "en",
-      toolbar_bg: "#0f141f",
+      toolbar_bg: "#12161c",
       enable_publishing: false,
       hide_top_toolbar: false,
       allow_symbol_change: true,
@@ -899,6 +906,8 @@ async function fetchStructureAnalysis(symbol, interval, switchTab = false) {
     state.structureData = data;
 
     renderStructurePanel(data);
+    updateChartMetricsStrip(data);
+    updateDeeeprAiIntelligence(data);
 
     if (switchTab) {
       switchRightTab("#pane-structure");
@@ -941,6 +950,567 @@ function updateChartMetricsStrip(data) {
   if (phaseEl) phaseEl.textContent = data.structure_phase;
   if (bslEl) bslEl.textContent = data.nearest_bsl ? `$${data.nearest_bsl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "---";
   if (sslEl) sslEl.textContent = data.nearest_ssl ? `$${data.nearest_ssl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "---";
+}
+
+/**
+ * Deeepr.ai 4-Lane Real-Time Intelligence Box & Floating Target Chips Update
+ */
+function updateDeeeprAiIntelligence(data) {
+  if (!data) return;
+
+  const selectedPair = document.getElementById("aiSelectedPair");
+  if (selectedPair) selectedPair.textContent = data.symbol || state.currentDisplay;
+
+  const verdictPill = document.getElementById("aiVerdictPill");
+  const verdictIcon = document.getElementById("aiVerdictIcon");
+  const verdictText = document.getElementById("aiVerdictText");
+
+  const bias = (data.directional_bias || "WAIT").toUpperCase();
+  const conf = data.confidence || 85;
+
+  if (verdictPill && verdictText) {
+    if (bias === "BULLISH") {
+      verdictPill.className = "verdict-pill pulse";
+      if (verdictIcon) verdictIcon.className = "bi bi-arrow-up-right";
+      verdictText.textContent = `LONG (${conf}%)`;
+    } else if (bias === "BEARISH") {
+      verdictPill.className = "verdict-pill short pulse";
+      if (verdictIcon) verdictIcon.className = "bi bi-arrow-down-right";
+      verdictText.textContent = `SHORT (${conf}%)`;
+    } else {
+      verdictPill.className = "verdict-pill wait pulse";
+      if (verdictIcon) verdictIcon.className = "bi bi-pause-circle";
+      verdictText.textContent = `WAIT (${conf}%)`;
+    }
+  }
+
+  // 4 Intelligence Lanes
+  const laneTech = document.getElementById("laneTechStatus");
+  const lanePA = document.getElementById("lanePriceActionStatus");
+  const laneFlow = document.getElementById("laneFlowStatus");
+  const laneMacro = document.getElementById("laneMacroStatus");
+
+  if (laneTech) {
+    if (bias === "BULLISH") {
+      laneTech.textContent = "BULLISH";
+      laneTech.className = "status-chip st-pos";
+    } else if (bias === "BEARISH") {
+      laneTech.textContent = "BEARISH";
+      laneTech.className = "status-chip st-neg";
+    } else {
+      laneTech.textContent = "RANGING";
+      laneTech.className = "status-chip st-neu";
+    }
+  }
+
+  if (lanePA) {
+    if (conf >= 85) {
+      lanePA.textContent = "READY (5M BOS)";
+      lanePA.className = "status-chip st-pos";
+    } else if (conf >= 70) {
+      lanePA.textContent = "MONITORING";
+      lanePA.className = "status-chip st-neu";
+    } else {
+      lanePA.textContent = "AWAITING BOS";
+      lanePA.className = "status-chip st-neu";
+    }
+  }
+
+  if (laneFlow) {
+    if (bias === "BULLISH") {
+      laneFlow.textContent = "SSL SWEPT";
+      laneFlow.className = "status-chip st-pos";
+    } else if (bias === "BEARISH") {
+      laneFlow.textContent = "BSL SWEPT";
+      laneFlow.className = "status-chip st-pos";
+    } else {
+      laneFlow.textContent = "BALANCED";
+      laneFlow.className = "status-chip st-neu";
+    }
+  }
+
+  if (laneMacro) {
+    laneMacro.textContent = "FAVORABLE";
+    laneMacro.className = "status-chip st-pos";
+  }
+
+  // Floating Target Chips on Chart (Deeepr.ai style)
+  const chipTpValue = document.getElementById("chipTpValue");
+  const chipSlValue = document.getElementById("chipSlValue");
+
+  if (bias === "BULLISH") {
+    if (chipTpValue) {
+      chipTpValue.textContent = data.nearest_bsl
+        ? `$${Number(data.nearest_bsl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (1:2 RR)`
+        : "+2.00% (1:2 RR)";
+    }
+    if (chipSlValue) {
+      chipSlValue.textContent = data.nearest_ssl
+        ? `$${Number(data.nearest_ssl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (SSL Protected)`
+        : "-1.00% (Structure SL)";
+    }
+  } else if (bias === "BEARISH") {
+    if (chipTpValue) {
+      chipTpValue.textContent = data.nearest_ssl
+        ? `$${Number(data.nearest_ssl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (1:2 RR)`
+        : "-2.00% (1:2 RR)";
+    }
+    if (chipSlValue) {
+      chipSlValue.textContent = data.nearest_bsl
+        ? `$${Number(data.nearest_bsl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (BSL Protected)`
+        : "+1.00% (Structure SL)";
+    }
+  } else {
+    if (chipTpValue) chipTpValue.textContent = "+2.00% (1:2 RR)";
+    if (chipSlValue) chipSlValue.textContent = "-1.00% (Structure SL)";
+  }
+}
+
+/**
+ * Live Binance Position & Protection Tracking (/api/positions)
+ */
+let currentOpenPosition = null;
+let currentOpenPositionSymbol = null;
+
+async function fetchLivePositionsAndBalance() {
+  try {
+    const res = await fetch("/api/positions");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    // 1. Update Top Nav Wallet Balance
+    const balanceEl = document.getElementById("topNavBalance");
+    if (balanceEl && typeof data.balance === "number") {
+      balanceEl.textContent = `$${data.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    // 2. Position HUD Banner & Bottom Dock Elements
+    const banner = document.getElementById("positionHudBanner");
+    const dock = document.getElementById("bottomPositionsDock");
+    const dockTableBody = document.getElementById("dockPositionTableBody");
+    const chipEntryBox = document.getElementById("chipEntryBox");
+    const chipEntrySide = document.getElementById("chipEntrySide");
+    const chipEntryValue = document.getElementById("chipEntryValue");
+    const chipEntryPnl = document.getElementById("chipEntryPnl");
+    const chipTpBox = document.getElementById("chipTpBox");
+    const chipTpValue = document.getElementById("chipTpValue");
+    const chipSlBox = document.getElementById("chipSlBox");
+    const chipSlValue = document.getElementById("chipSlValue");
+
+    if (data.positions && data.positions.length > 0) {
+      const pos = data.positions[0];
+      currentOpenPosition = pos;
+      currentOpenPositionSymbol = pos.symbol;
+
+      if (banner) {
+        banner.style.removeProperty("display");
+        banner.style.setProperty("display", "flex", "important");
+      }
+      if (dock) {
+        dock.style.removeProperty("display");
+        dock.style.setProperty("display", "block", "important");
+      }
+
+      const sideBadge = document.getElementById("hudSideBadge");
+      const symEl = document.getElementById("hudSymbol");
+      const entryEl = document.getElementById("hudEntryPrice");
+      const markEl = document.getElementById("hudMarkPrice");
+      const tpEl = document.getElementById("hudTpPrice");
+      const slEl = document.getElementById("hudSlPrice");
+      const stopEl = document.getElementById("hudCtcStop");
+      const pnlEl = document.getElementById("hudPnlValue");
+
+      const isLong = (pos.side || "").toUpperCase() === "LONG" || (pos.side || "").toUpperCase() === "BUY";
+      const lev = pos.leverage || 14;
+      const entry = Number(pos.entry_price || 0);
+      const mark = Number(pos.mark_price || entry);
+      const pnl = Number(pos.unrealized_pnl || 0);
+      const tpPrice = Number(pos.tp_price || (isLong ? entry * 1.02 : entry * 0.98));
+      const slPrice = Number(pos.sl_price || (isLong ? entry * 0.99 : entry * 1.01));
+      const diffPct = entry > 0 ? ((mark - entry) / entry) * 100 * (isLong ? 1 : -1) * lev : 0;
+      const pnlColorClass = pnl >= 0 ? "text-success" : "text-danger";
+      const pnlPrefix = pnl >= 0 ? "+" : "";
+
+      // Format decimals according to symbol price magnitude
+      const dec = entry < 10 ? 4 : (entry < 100 ? 3 : 2);
+
+      // Populate Top HUD Banner
+      if (sideBadge) {
+        sideBadge.className = `badge font-monospace ${isLong ? "bg-success text-dark fw-bold" : "bg-danger text-light fw-bold"}`;
+        sideBadge.textContent = `${isLong ? "LONG" : "SHORT"} ${lev}X`;
+      }
+      if (symEl) symEl.textContent = pos.symbol;
+      if (entryEl) entryEl.textContent = `$${entry.toFixed(dec)}`;
+      if (markEl) markEl.textContent = `$${mark.toFixed(dec)}`;
+      if (tpEl) tpEl.textContent = `$${tpPrice.toFixed(dec)}`;
+      if (slEl) slEl.textContent = `$${slPrice.toFixed(dec)}`;
+      if (stopEl) stopEl.textContent = `$${slPrice.toFixed(dec)}`;
+
+      if (pnlEl) {
+        pnlEl.className = `fw-bold fs-7 ${pnlColorClass}`;
+        pnlEl.textContent = `${pnlPrefix}$${pnl.toFixed(2)} (${pnlPrefix}${diffPct.toFixed(2)}%)`;
+      }
+
+      // Check if active chart matches position symbol
+      const activeChartClean = (state.currentSymbol || "").replace(/.*:/, "").replace("/", "").toUpperCase();
+      const posClean = (pos.symbol || "").replace("/", "").toUpperCase();
+
+      if (activeChartClean === posClean || !state.currentSymbol) {
+        if (chipEntryBox) {
+          chipEntryBox.style.removeProperty("display");
+          chipEntryBox.style.setProperty("display", "inline-flex", "important");
+          if (chipEntrySide) {
+            chipEntrySide.className = `badge font-monospace fs-9 ${isLong ? "bg-success text-dark fw-bold" : "bg-danger text-white fw-bold"}`;
+            chipEntrySide.textContent = `${isLong ? "LONG" : "SHORT"} ${lev}X`;
+          }
+          if (chipEntryValue) chipEntryValue.textContent = `$${entry.toFixed(dec)}`;
+          if (chipEntryPnl) {
+            chipEntryPnl.className = `badge font-monospace fw-bold ms-1 ${pnl >= 0 ? "bg-success text-dark" : "bg-danger text-white"}`;
+            chipEntryPnl.textContent = `${pnlPrefix}$${pnl.toFixed(2)}`;
+          }
+        }
+        if (chipTpValue) {
+          chipTpValue.textContent = `$${tpPrice.toFixed(dec)} (Target)`;
+        }
+        if (chipSlValue) {
+          chipSlValue.textContent = `$${slPrice.toFixed(dec)} (Protection)`;
+        }
+      } else {
+        if (chipEntryBox) chipEntryBox.style.display = "none";
+      }
+
+      // Populate Binance Pro Bottom Positions Table
+      if (dockTableBody) {
+        const amt = Number(pos.amount || 0);
+        const margin = entry > 0 && lev > 0 ? ((Math.abs(amt) * entry) / lev).toFixed(2) : "--";
+        const liqPrice = pos.liquidation_price && pos.liquidation_price > 0 ? Number(pos.liquidation_price).toFixed(dec) : "--";
+
+        dockTableBody.innerHTML = `
+          <tr class="align-middle">
+            <td>
+              <div class="d-flex align-items-center gap-1">
+                <span class="badge ${isLong ? 'bg-success text-dark' : 'bg-danger text-white'} fw-bold fs-9">${isLong ? 'LONG' : 'SHORT'} ${lev}X</span>
+                <span class="fw-bold text-light fs-8">${pos.symbol}</span>
+                <button class="btn btn-xs btn-outline-warning py-0 px-1 ms-1 fs-9" onclick="switchChartToPosition('${pos.symbol}')" title="View on Chart">
+                  <i class="bi bi-graph-up"></i>
+                </button>
+              </div>
+            </td>
+            <td class="text-white">${amt} <span class="text-secondary fs-9">(${(Math.abs(amt) * mark).toFixed(2)} USDT)</span></td>
+            <td class="text-warning fw-semibold">$${entry.toFixed(dec)}</td>
+            <td class="text-light">$${mark.toFixed(dec)}</td>
+            <td class="text-danger-emphasis">${liqPrice !== "--" ? "$" + liqPrice : "--"}</td>
+            <td class="text-secondary">$${margin} USDT</td>
+            <td>
+              <span class="fw-bold fs-8 ${pnlColorClass}">
+                ${pnlPrefix}$${pnl.toFixed(2)} (${pnlPrefix}${diffPct.toFixed(2)}%)
+              </span>
+            </td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <span class="text-success fs-9 fw-semibold"><i class="bi bi-bullseye me-1"></i>$${tpPrice.toFixed(dec)}</span>
+                <span class="text-secondary fs-9">/</span>
+                <span class="text-danger fs-9 fw-semibold"><i class="bi bi-shield-shaded me-1"></i>$${slPrice.toFixed(dec)}</span>
+                <button class="btn btn-sm btn-outline-warning py-0 px-2 fs-9 font-monospace ms-1" onclick="openTpSlModal()" title="Modify TP / SL">
+                  <i class="bi bi-pencil-square"></i> Set
+                </button>
+              </div>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-danger py-0 px-2 fs-8 fw-bold" onclick="closeLivePosition()" title="Market Close Position">
+                <i class="bi bi-x-circle me-1"></i>Market
+              </button>
+            </td>
+          </tr>
+        `;
+      }
+    } else {
+      currentOpenPosition = null;
+      currentOpenPositionSymbol = null;
+      if (banner) banner.style.setProperty("display", "none", "important");
+      if (dock) dock.style.setProperty("display", "none", "important");
+      if (chipEntryBox) chipEntryBox.style.display = "none";
+    }
+  } catch (err) {
+    console.warn("Failed to fetch live positions/balance:", err);
+  }
+}
+
+/**
+ * Switch chart view to position symbol
+ */
+function switchChartToPosition(sym) {
+  if (!sym) return;
+  const rawSym = sym.replace("/", "").toUpperCase();
+  const targetBtn = document.querySelector(`.asset-item[data-symbol*="${rawSym}"]`);
+  if (targetBtn) {
+    targetBtn.click();
+  } else {
+    state.currentSymbol = `BINANCE:${rawSym}`;
+    state.currentDisplay = `${rawSym}`;
+    if (typeof initTradingViewWidget === "function") {
+      initTradingViewWidget(state.currentSymbol, state.currentInterval || "15");
+    }
+    const topTitle = document.getElementById("activeChartTitle");
+    if (topTitle) topTitle.textContent = rawSym;
+  }
+}
+window.switchChartToPosition = switchChartToPosition;
+
+/**
+ * Interactive TP/SL Settings Modal
+ */
+let tpSlModalInstance = null;
+
+function openTpSlModal() {
+  if (!currentOpenPosition) {
+    showToast("No Position", "No active Binance position to adjust TP/SL.");
+    return;
+  }
+  const pos = currentOpenPosition;
+  const isLong = (pos.side || "").toUpperCase() === "LONG" || (pos.side || "").toUpperCase() === "BUY";
+  const entry = Number(pos.entry_price || 0);
+  const mark = Number(pos.mark_price || entry);
+  const dec = entry < 10 ? 4 : (entry < 100 ? 3 : 2);
+
+  const symEl = document.getElementById("modalPosSymbol");
+  const sideEl = document.getElementById("modalPosSide");
+  const entryEl = document.getElementById("modalPosEntry");
+  const markEl = document.getElementById("modalPosMark");
+  const tpInput = document.getElementById("tpInputPrice");
+  const slInput = document.getElementById("slInputPrice");
+
+  if (symEl) symEl.textContent = pos.symbol;
+  if (sideEl) {
+    sideEl.className = `badge font-monospace ${isLong ? "bg-success text-dark fw-bold" : "bg-danger text-light fw-bold"}`;
+    sideEl.textContent = `${isLong ? "LONG" : "SHORT"} ${pos.leverage || 14}X`;
+  }
+  if (entryEl) entryEl.textContent = `$${entry.toFixed(dec)}`;
+  if (markEl) markEl.textContent = `$${mark.toFixed(dec)}`;
+
+  const currentTp = pos.tp_price ? Number(pos.tp_price) : (isLong ? entry * 1.02 : entry * 0.98);
+  const currentSl = pos.sl_price ? Number(pos.sl_price) : (isLong ? entry * 0.99 : entry * 1.01);
+
+  if (tpInput) tpInput.value = currentTp.toFixed(dec);
+  if (slInput) slInput.value = currentSl.toFixed(dec);
+
+  updateModalEstCalculations();
+
+  if (tpInput) tpInput.oninput = updateModalEstCalculations;
+  if (slInput) slInput.oninput = updateModalEstCalculations;
+
+  const modalEl = document.getElementById("tpSlModal");
+  if (modalEl && typeof bootstrap !== "undefined") {
+    tpSlModalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    tpSlModalInstance.show();
+  }
+}
+window.openTpSlModal = openTpSlModal;
+
+function updateModalEstCalculations() {
+  if (!currentOpenPosition) return;
+  const pos = currentOpenPosition;
+  const isLong = (pos.side || "").toUpperCase() === "LONG" || (pos.side || "").toUpperCase() === "BUY";
+  const entry = Number(pos.entry_price || 0);
+  const qty = Math.abs(Number(pos.amount || 0));
+
+  const tpInput = document.getElementById("tpInputPrice");
+  const slInput = document.getElementById("slInputPrice");
+  const tpEst = document.getElementById("tpEstGain");
+  const slEst = document.getElementById("slEstLoss");
+
+  if (tpInput && tpEst && entry > 0) {
+    const tpVal = parseFloat(tpInput.value);
+    if (!isNaN(tpVal)) {
+      const gain = isLong ? (tpVal - entry) * qty : (entry - tpVal) * qty;
+      const margin = (entry * qty) / (pos.leverage || 14);
+      const gainPct = margin > 0 ? (gain / margin) * 100 : 0;
+      tpEst.textContent = `Est. Profit: +$${gain.toFixed(2)} (+${gainPct.toFixed(1)}%)`;
+      tpEst.className = "fs-9 text-success fw-bold";
+    }
+  }
+
+  if (slInput && slEst && entry > 0) {
+    const slVal = parseFloat(slInput.value);
+    if (!isNaN(slVal)) {
+      const loss = isLong ? (entry - slVal) * qty : (slVal - entry) * qty;
+      const margin = (entry * qty) / (pos.leverage || 14);
+      const lossPct = margin > 0 ? (loss / margin) * 100 : 0;
+      slEst.textContent = `Est. Loss: -$${loss.toFixed(2)} (-${lossPct.toFixed(1)}%)`;
+      slEst.className = "fs-9 text-danger fw-bold";
+    }
+  }
+}
+
+function applyTpSlPreset(preset) {
+  if (!currentOpenPosition) return;
+  const pos = currentOpenPosition;
+  const isLong = (pos.side || "").toUpperCase() === "LONG" || (pos.side || "").toUpperCase() === "BUY";
+  const entry = Number(pos.entry_price || 0);
+  const dec = entry < 10 ? 4 : (entry < 100 ? 3 : 2);
+  const tpInput = document.getElementById("tpInputPrice");
+  const slInput = document.getElementById("slInputPrice");
+
+  if (preset === "BE") {
+    if (slInput) slInput.value = entry.toFixed(dec);
+    if (tpInput) {
+      const tp = isLong ? entry * 1.02 : entry * 0.98;
+      tpInput.value = tp.toFixed(dec);
+    }
+  } else if (preset === "1:2") {
+    if (tpInput) {
+      const tp = isLong ? entry * 1.02 : entry * 0.98;
+      tpInput.value = tp.toFixed(dec);
+    }
+    if (slInput) {
+      const sl = isLong ? entry * 0.99 : entry * 1.01;
+      slInput.value = sl.toFixed(dec);
+    }
+  } else if (preset === "1:3") {
+    if (tpInput) {
+      const tp = isLong ? entry * 1.03 : entry * 0.97;
+      tpInput.value = tp.toFixed(dec);
+    }
+    if (slInput) {
+      const sl = isLong ? entry * 0.99 : entry * 1.01;
+      slInput.value = sl.toFixed(dec);
+    }
+  }
+  updateModalEstCalculations();
+}
+window.applyTpSlPreset = applyTpSlPreset;
+
+async function saveTpSlSettings() {
+  if (!currentOpenPositionSymbol) {
+    showToast("Error", "No open position symbol found.");
+    return;
+  }
+  const tpInput = document.getElementById("tpInputPrice");
+  const slInput = document.getElementById("slInputPrice");
+
+  const tpVal = tpInput ? parseFloat(tpInput.value) : null;
+  const slVal = slInput ? parseFloat(slInput.value) : null;
+
+  try {
+    const res = await fetch("/api/positions/set_tpsl", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        symbol: currentOpenPositionSymbol,
+        tp_price: tpVal,
+        sl_price: slVal
+      })
+    });
+    const result = await res.json();
+    if (res.ok) {
+      showToast("Orders Updated", `TP/SL successfully configured on Binance for ${currentOpenPositionSymbol}!`);
+      if (tpSlModalInstance) tpSlModalInstance.hide();
+      await fetchLivePositionsAndBalance();
+    } else {
+      showToast("Update Failed", result.detail || result.error || "Could not set TP/SL");
+    }
+  } catch (err) {
+    console.error("Error setting TP/SL:", err);
+    showToast("Network Error", "Could not submit TP/SL request");
+  }
+}
+window.saveTpSlSettings = saveTpSlSettings;
+
+/**
+ * 1-Click Close Live Position Handler
+ */
+async function closeLivePosition() {
+  if (!currentOpenPositionSymbol) {
+    showToast("No Position", "No active Binance position to close.");
+    return;
+  }
+  const confirmed = confirm(`Are you sure you want to close position on ${currentOpenPositionSymbol}?`);
+  if (!confirmed) return;
+
+  const btn = document.getElementById("hudCloseBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Closing...`;
+  }
+
+  try {
+    const res = await fetch("/api/positions/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol: currentOpenPositionSymbol })
+    });
+    const result = await res.json();
+    if (res.ok) {
+      showToast("Position Closed", `Successfully closed ${currentOpenPositionSymbol}`);
+      await fetchLivePositionsAndBalance();
+    } else {
+      showToast("Close Failed", result.error || "Failed to close position on Binance");
+    }
+  } catch (err) {
+    console.error("Error closing position:", err);
+    showToast("API Error", "Could not reach close position endpoint");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="bi bi-x-circle me-1"></i>Close`;
+    }
+  }
+}
+window.closeLivePosition = closeLivePosition;
+
+/**
+ * Marquee Ticker 24hr Feed
+ */
+async function initMarqueeTickerFeed() {
+  const track = document.getElementById("topTickerTrack");
+  if (!track) return;
+
+  async function updatePrices() {
+    try {
+      const res = await fetch("https://fapi.binance.com/fapi/v1/ticker/24hr");
+      if (!res.ok) return;
+      const list = await res.json();
+      const targets = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "ZECUSDT", "XRPUSDT", "AVAXUSDT"];
+      const map = {};
+      list.forEach(item => {
+        if (targets.includes(item.symbol)) {
+          map[item.symbol] = {
+            price: Number(item.lastPrice),
+            chg: Number(item.priceChangePercent)
+          };
+        }
+      });
+
+      if (Object.keys(map).length > 0) {
+        const formatItem = (sym, name) => {
+          const d = map[sym];
+          if (!d) return "";
+          const isPos = d.chg >= 0;
+          const priceStr = d.price >= 100 ? d.price.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : d.price.toFixed(3);
+          const chgStr = `${isPos ? '+' : ''}${d.chg.toFixed(2)}%`;
+          return `<div class="ticker-pill-item"><span class="sym">${name}</span><span class="val">$${priceStr}</span><span class="chg ${isPos ? 'pos' : 'neg'}">${chgStr}</span></div>`;
+        };
+
+        const pairs = [
+          ["BTCUSDT", "BTC/USDT"],
+          ["ETHUSDT", "ETH/USDT"],
+          ["SOLUSDT", "SOL/USDT"],
+          ["BNBUSDT", "BNB/USDT"],
+          ["ZECUSDT", "ZEC/USDT"],
+          ["XRPUSDT", "XRP/USDT"],
+          ["AVAXUSDT", "AVAX/USDT"]
+        ];
+
+        let html = pairs.map(([sym, name]) => formatItem(sym, name)).join("");
+        track.innerHTML = html + html;
+      }
+    } catch (err) {
+      // Keep static marquee if offline
+    }
+  }
+
+  updatePrices();
+  setInterval(updatePrices, 20000);
 }
 
 /**
