@@ -61,16 +61,8 @@ class DeltaMicroBot:
             is_india=os.getenv("DELTA_IS_INDIA", "true").lower() == "true",
         )
         self.telegram = TelegramAlertSender()
-        self.last_trade_time = time.time()
-        self.active_trade: Optional[Dict[str, Any]] = {
-            "symbol": "XRPUSD",
-            "entry_price": 1.3192,
-            "contracts": 1,
-            "side": "buy",
-            "sl_price": 1.3050,
-            "tp_price": 1.3360,
-            "entry_time": time.time(),
-        }
+        self.last_trade_time = 0
+        self.active_trade: Optional[Dict[str, Any]] = None
 
     def check_open_positions(self) -> List[Dict[str, Any]]:
         try:
@@ -233,6 +225,7 @@ class DeltaMicroBot:
                 if self.auto_trade and not has_open_pos and time_since_trade > 600:
                     if res_v.has_valid_setup and res_v.signal:
                         sig = res_v.signal
+                        reason_str = getattr(sig, "reason", getattr(sig, "notes", "5M BOS Retest A++ Setup"))
                         self.execute_micro_signal(
                             pair_cfg=p_cfg,
                             signal_type="Video 5M Retest Scalper",
@@ -240,11 +233,12 @@ class DeltaMicroBot:
                             entry_price=sig.entry_price,
                             sl_price=sig.stop_loss,
                             tp_price=sig.tp_1_2rr,
-                            reason=sig.reason
+                            reason=reason_str
                         )
                         has_open_pos = True
                     elif res_s.has_valid_setup and res_s.signal:
                         sig = res_s.signal
+                        reason_str = getattr(sig, "notes", getattr(sig, "reason", "15M Liquidity Sweep A++ Setup"))
                         self.execute_micro_signal(
                             pair_cfg=p_cfg,
                             signal_type="15M Liquidity Sweep",
@@ -252,7 +246,7 @@ class DeltaMicroBot:
                             entry_price=sig.entry_price,
                             sl_price=sig.stop_loss,
                             tp_price=sig.tp_1_2rr,
-                            reason=sig.notes
+                            reason=reason_str
                         )
                         has_open_pos = True
 
