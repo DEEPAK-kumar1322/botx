@@ -2,7 +2,7 @@
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>BotX - AI Trading Engine Dashboard</title>
   
   <!-- Google Fonts: Syne (Headers) & Plus Jakarta Sans (Body) -->
@@ -32,12 +32,12 @@
         </div>
         <div>
           <span class="brand-title">Bot<span class="text-primary-accent">X</span></span>
-          <span class="badge bg-warning text-dark fw-bold ms-2 font-monospace fs-9">BINANCE PRO</span>
+          <span class="badge bg-warning text-dark fw-bold ms-1 ms-sm-2 font-monospace fs-9" id="activeExchangeBadge">DELTA INDIA</span>
         </div>
       </a>
 
       <!-- Primary View Switcher: Terminal Chart vs Strategy Hub -->
-      <div class="nav-view-switcher d-flex align-items-center bg-dark-card p-1 rounded border border-dark-subtle ms-3">
+      <div class="nav-view-switcher d-none d-md-flex align-items-center bg-dark-card p-1 rounded border border-dark-subtle ms-3">
         <button class="btn btn-sm view-switch-btn active px-3 py-1 fs-8 fw-semibold" id="btnNavTerminal">
           <i class="bi bi-graph-up me-1"></i>Terminal
         </button>
@@ -48,7 +48,7 @@
       </div>
 
       <!-- Continuous Marquee Ticker Tape (Deeepr.ai style) -->
-      <div class="top-ticker-tape mx-3">
+      <div class="top-ticker-tape mx-3 d-none d-xl-block">
         <div class="ticker-track-anim" id="topTickerTrack">
           <div class="ticker-pill-item"><span class="sym">BTC/USDT</span><span class="val">$82,040</span><span class="chg pos">+1.12%</span></div>
           <div class="ticker-pill-item"><span class="sym">ETH/USDT</span><span class="val">$2,402</span><span class="chg pos">+0.85%</span></div>
@@ -69,23 +69,28 @@
       </div>
 
       <!-- Header Actions -->
-      <div class="d-flex align-items-center gap-3">
+      <div class="d-flex align-items-center gap-2 gap-sm-3 ms-auto">
         <!-- Live Wallet Balance -->
-        <div class="d-flex align-items-center gap-2 px-3 py-1 rounded bg-dark-card border border-dark-subtle font-monospace fs-8" id="navBalanceBox">
+        <div class="d-flex align-items-center gap-1 gap-sm-2 px-2 px-sm-3 py-1 rounded bg-dark-card border border-dark-subtle font-monospace fs-8" id="navBalanceBox" title="Delta India Wallet Balance">
           <i class="bi bi-wallet2 text-primary-accent"></i>
-          <span class="text-light fw-bold" id="topNavBalance">$10,639.93</span>
-          <span class="text-muted fs-9">USDT</span>
+          <span class="text-light fw-bold" id="topNavBalance">₹131.52</span>
+          <span class="text-muted fs-9 d-none d-sm-inline">INR</span>
         </div>
 
-        <!-- WhatsApp Bot Status Pill -->
-        <div class="telegram-status-pill d-flex align-items-center gap-2 px-3 py-1 rounded-pill">
-          <i class="bi bi-whatsapp text-success"></i>
-          <span class="fs-8 fw-semibold text-light">WhatsApp Active</span>
+        <!-- Telegram Bot Status Pill -->
+        <div class="telegram-status-pill d-flex align-items-center gap-1 gap-sm-2 px-2 px-sm-3 py-1 rounded-pill" title="Live 24/7 Telegram Alerts to @IamDeva_bot">
+          <i class="bi bi-telegram text-info"></i>
+          <span class="fs-8 fw-semibold text-light d-none d-sm-inline">Telegram Active</span>
           <span class="pulse-indicator"></span>
         </div>
 
-        <!-- Clock Display -->
-        <div class="clock-display d-none d-md-block text-end font-monospace fs-8 text-secondary">
+        <!-- Tablet Watchlist Toggle -->
+        <button class="btn btn-sm btn-outline-secondary d-none d-md-inline-flex d-lg-none align-items-center gap-1 font-monospace fs-8" id="tabletWatchlistToggleBtn" title="Toggle Watchlist">
+          <i class="bi bi-list-columns"></i>
+        </button>
+
+        <!-- Clock Display (Desktop only) -->
+        <div class="clock-display d-none d-xl-block text-end font-monospace fs-8 text-secondary">
           <div id="liveUtcClock">00:00:00 UTC</div>
         </div>
       </div>
@@ -172,14 +177,69 @@
                 </div>
               </button>
 
-              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:XRPUSDT" data-display="XRP/USDT" data-type="crypto" data-price="1.3020" data-change="+0.95%">
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:XRPUSDT" data-display="XRP/USDT" data-type="crypto" data-price="1.3190" data-change="+0.95%">
                 <div class="d-flex flex-column text-start">
                   <span class="fw-bold fs-7">XRP/USDT</span>
-                  <span class="fs-9 text-muted font-monospace">Ripple / Tether</span>
+                  <span class="fs-9 text-muted font-monospace">Ripple (Micro)</span>
                 </div>
                 <div class="text-end font-monospace">
-                  <div class="fs-7 fw-semibold">$1.3020</div>
+                  <div class="fs-7 fw-semibold">$1.3190</div>
                   <div class="fs-9 text-success">+0.95%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:SUIUSDT" data-display="SUI/USDT" data-type="crypto" data-price="1.0110" data-change="+1.12%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">SUI/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Sui Network (Micro)</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$1.0110</div>
+                  <div class="fs-9 text-success">+1.12%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:DOGEUSDT" data-display="DOGE/USDT" data-type="crypto" data-price="0.0805" data-change="+1.45%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">DOGE/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Dogecoin (Micro)</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$0.0805</div>
+                  <div class="fs-9 text-success">+1.45%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:ADAUSDT" data-display="ADA/USDT" data-type="crypto" data-price="0.2210" data-change="-0.42%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">ADA/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Cardano (Micro)</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$0.2210</div>
+                  <div class="fs-9 text-danger">-0.42%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:POLUSDT" data-display="POL/USDT" data-type="crypto" data-price="0.0939" data-change="+0.85%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">POL/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">Polygon POL (Micro)</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$0.0939</div>
+                  <div class="fs-9 text-success">+0.85%</div>
+                </div>
+              </button>
+
+              <button class="list-group-item list-group-item-action asset-item d-flex justify-content-between align-items-center" data-symbol="BINANCE:NEARUSDT" data-display="NEAR/USDT" data-type="crypto" data-price="4.8340" data-change="+1.85%">
+                <div class="d-flex flex-column text-start">
+                  <span class="fw-bold fs-7">NEAR/USDT</span>
+                  <span class="fs-9 text-muted font-monospace">NEAR Protocol (Micro)</span>
+                </div>
+                <div class="text-end font-monospace">
+                  <div class="fs-7 fw-semibold">$4.8340</div>
+                  <div class="fs-9 text-success">+1.85%</div>
                 </div>
               </button>
 
@@ -366,43 +426,45 @@
         <!-- CENTER CONTAINER: TradingView Advanced Real-Time Chart -->
         <section class="main-content-center flex-grow-1 d-flex flex-column">
           
-          <!-- Chart Controls Sub-header (Single Row - No Wrap, No Overlap) -->
-          <div class="chart-header-bar d-flex align-items-center justify-content-between px-3 border-bottom border-dark-subtle bg-dark-surface">
-            <div class="d-flex align-items-center gap-3">
-              <div class="d-flex align-items-center gap-2">
-                <h2 class="fs-6 fw-bold m-0 text-light" id="activeChartTitle">BTC/USDT</h2>
+          <!-- Chart Controls Sub-header (Responsive & Touch-Optimized) -->
+          <div class="chart-header-bar d-flex align-items-center justify-content-between px-2 px-sm-3 border-bottom border-dark-subtle bg-dark-surface">
+            <div class="d-flex align-items-center gap-2 gap-sm-3 flex-nowrap overflow-hidden">
+              <div class="d-flex align-items-center gap-1 gap-sm-2 flex-shrink-0">
+                <h2 class="fs-7 fs-sm-6 fw-bold m-0 text-light" id="activeChartTitle">BTC/USDT</h2>
                 <span class="badge bg-warning text-dark fw-bold fs-9 font-monospace" id="chartExchangeBadge">BINANCE</span>
               </div>
               
-              <!-- Timeframe Selector Pills (Binance Style) -->
-              <div class="btn-group btn-group-sm" role="group" id="timeframeButtonGroup">
-                <button type="button" class="btn btn-tf" data-interval="1">1m</button>
-                <button type="button" class="btn btn-tf" data-interval="5">5m</button>
-                <button type="button" class="btn btn-tf active" data-interval="15">15m</button>
-                <button type="button" class="btn btn-tf" data-interval="60">1h</button>
-                <button type="button" class="btn btn-tf" data-interval="240">4h</button>
-                <button type="button" class="btn btn-tf" data-interval="D">1D</button>
+              <!-- Timeframe Selector Pills (Horizontal swipeable on mobile) -->
+              <div class="timeframe-group-wrapper">
+                <div class="btn-group btn-group-sm flex-nowrap" role="group" id="timeframeButtonGroup">
+                  <button type="button" class="btn btn-tf" data-interval="1">1m</button>
+                  <button type="button" class="btn btn-tf" data-interval="5">5m</button>
+                  <button type="button" class="btn btn-tf active" data-interval="15">15m</button>
+                  <button type="button" class="btn btn-tf" data-interval="60">1h</button>
+                  <button type="button" class="btn btn-tf" data-interval="240">4h</button>
+                  <button type="button" class="btn btn-tf" data-interval="D">1D</button>
+                </div>
               </div>
             </div>
 
             <!-- Quick Strategy Actions -->
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-1 gap-sm-2 flex-shrink-0">
               <!-- Quick Analyze Button -->
-              <button class="btn btn-sm btn-outline-warning d-flex align-items-center gap-1 font-monospace fs-8" id="quickAnalyzeBtn" title="Run On-Demand Market Structure & Liquidity Analysis">
+              <button class="btn btn-sm btn-outline-warning d-flex align-items-center gap-1 font-monospace fs-8 px-2 py-1" id="quickAnalyzeBtn" title="Run On-Demand Market Structure & Liquidity Analysis">
                 <i class="bi bi-cpu-fill text-warning"></i>
-                <span class="fw-semibold">Analyze</span>
+                <span class="fw-semibold d-none d-sm-inline">Analyze</span>
               </button>
 
-              <!-- Strategy Hub Shortcut Button -->
-              <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 font-monospace fs-8 text-light" id="chartGoStrategyHubBtn" title="Open Modular Strategy Hub">
+              <!-- Strategy Hub Shortcut Button (Desktop only) -->
+              <button class="btn btn-sm btn-outline-secondary d-none d-md-flex align-items-center gap-1 font-monospace fs-8 text-light px-2 py-1" id="chartGoStrategyHubBtn" title="Open Modular Strategy Hub">
                 <i class="bi bi-grid-1x2-fill text-warning"></i>
                 <span>Hub</span>
               </button>
               
               <!-- Activate Strategy Toggle -->
-              <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-2 font-monospace fs-8" id="strategyToggleBtn" title="Deploy / Toggle Automated SMC Strategy Engine">
+              <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 gap-sm-2 font-monospace fs-8 px-2 py-1" id="strategyToggleBtn" title="Deploy / Toggle Automated SMC Strategy Engine">
                 <span class="strategy-status-dot" id="strategyBtnDot"></span>
-                <span class="fw-semibold" id="strategyBtnText">Activate Strategy</span>
+                <span class="fw-semibold d-none d-sm-inline" id="strategyBtnText">Activate Strategy</span>
               </button>
             </div>
           </div>
@@ -974,6 +1036,31 @@
       </div>
     </div>
   </div>
+
+  <!-- Mobile Bottom Navigation Bar (Pro App Dock for iPhone & Android) -->
+  <nav class="mobile-bottom-bar d-flex d-md-none" id="mobileBottomNav">
+    <button class="mobile-nav-btn active" data-mob-tab="chart" id="mobTabChart" title="TradingView Chart">
+      <i class="bi bi-graph-up"></i>
+      <span>Chart</span>
+    </button>
+    <button class="mobile-nav-btn" data-mob-tab="watchlist" id="mobTabWatchlist" title="Market Watchlist">
+      <i class="bi bi-view-list"></i>
+      <span>Watchlist</span>
+    </button>
+    <button class="mobile-nav-btn" data-mob-tab="signals" id="mobTabSignals" title="AI Signals & Confluence">
+      <i class="bi bi-broadcast"></i>
+      <span>Signals</span>
+      <span class="mob-badge" id="mobSignalsBadge" style="display: none;">0</span>
+    </button>
+    <button class="mobile-nav-btn" data-mob-tab="strategy" id="mobTabStrategy" title="Algorithmic Strategy Hub">
+      <i class="bi bi-cpu-fill"></i>
+      <span>Strategy</span>
+    </button>
+    <button class="mobile-nav-btn" data-mob-tab="position" id="mobTabPosition" title="Active Positions & TP/SL">
+      <i class="bi bi-shield-shaded"></i>
+      <span>Position</span>
+    </button>
+  </nav>
 
   <!-- Bootstrap 5 Bundle JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

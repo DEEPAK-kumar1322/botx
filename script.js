@@ -349,6 +349,10 @@ document.addEventListener("DOMContentLoaded", () => {
   initStrategyHub();
   renderAlerts();
 
+  // Mobile & Tablet Responsive Navigation
+  initMobileNavigation();
+  initTabletWatchlistToggle();
+
   // Initial On-Demand Structure Analysis & Live Signals Fetch
   fetchStructureAnalysis(state.currentDisplay, state.currentInterval);
   fetchStrategySignals();
@@ -454,6 +458,11 @@ function initMarketSelectors() {
       fetchStructureAnalysis(state.currentDisplay, state.currentInterval);
       if (state.strategyActive) {
         evaluateLiveStrategy(true);
+      }
+
+      // On mobile devices, automatically switch back to the Chart tab when an asset is selected!
+      if (window.innerWidth <= 768 && typeof setMobileTab === "function") {
+        setMobileTab("chart");
       }
 
       showToast("Market Switched", `Chart & Live SMC feed switched to ${display}`);
@@ -1082,6 +1091,41 @@ async function fetchLivePositionsAndBalance() {
     const balanceEl = document.getElementById("topNavBalance");
     if (balanceEl && typeof data.balance === "number") {
       balanceEl.textContent = `$${data.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    // Fetch Live Delta Exchange India account status & balance
+    try {
+      const deltaRes = await fetch("/api/delta/status");
+      if (deltaRes.ok) {
+        const deltaData = await deltaRes.json();
+        if (deltaData.connected && deltaData.inr_balance !== undefined) {
+          const inrVal = Number(deltaData.inr_balance);
+          const usdVal = Number(deltaData.usd_balance || 0);
+          if (balanceEl) {
+            balanceEl.innerHTML = `₹${inrVal.toFixed(2)} <span class="text-secondary fs-9 d-none d-sm-inline">($${usdVal.toFixed(2)})</span>`;
+          }
+          const navUnit = document.querySelector("#navBalanceBox .text-muted");
+          if (navUnit) navUnit.textContent = "INR";
+
+          // Map Delta positions if active and binance has none
+          if ((!data.positions || data.positions.length === 0) && deltaData.positions && deltaData.positions.length > 0) {
+            data.positions = deltaData.positions.map(dp => ({
+              symbol: dp.symbol,
+              amount: dp.size,
+              side: dp.size > 0 ? "LONG" : "SHORT",
+              entry_price: dp.entry_price,
+              mark_price: dp.mark_price,
+              unrealized_pnl: dp.unrealized_pnl,
+              leverage: 10,
+              liquidation_price: dp.liquidation_price || 0,
+              tp_price: null,
+              sl_price: null
+            }));
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore delta fetch error
     }
 
     // 2. Position HUD Banner & Bottom Dock Elements
@@ -2735,6 +2779,68 @@ function renderHubAuditTable(history) {
     `;
     tableBody.appendChild(tr);
   });
+}
+
+/**
+ * Global Mobile Tab Controller
+ */
+function setMobileTab(tabName) {
+  const dashboardViewport = document.querySelector(".dashboard-viewport");
+  const mobButtons = document.querySelectorAll(".mobile-nav-btn");
+  if (!dashboardViewport) return;
+
+  dashboardViewport.setAttribute("data-mob-tab", tabName);
+
+  mobButtons.forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-mob-tab") === tabName);
+  });
+
+  if (tabName === "strategy") {
+    switchView("hub");
+  } else {
+    switchView("terminal");
+  }
+
+  // Force TradingView widget to adapt to newly active container dimensions
+  setTimeout(() => {
+    window.dispatchEvent(new Event("resize"));
+  }, 60);
+}
+
+/**
+ * Initialize Mobile Bottom Navigation Pro Dock
+ */
+function initMobileNavigation() {
+  const mobButtons = document.querySelectorAll(".mobile-nav-btn");
+  mobButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tab = btn.getAttribute("data-mob-tab");
+      if (tab) setMobileTab(tab);
+    });
+  });
+
+  // Set default mobile tab
+  const dashboardViewport = document.querySelector(".dashboard-viewport");
+  if (dashboardViewport && !dashboardViewport.getAttribute("data-mob-tab")) {
+    dashboardViewport.setAttribute("data-mob-tab", "chart");
+  }
+}
+
+/**
+ * Initialize Tablet Watchlist Offcanvas / Toggle
+ */
+function initTabletWatchlistToggle() {
+  const toggleBtn = document.getElementById("tabletWatchlistToggleBtn");
+  const sidebarLeft = document.querySelector(".sidebar-left");
+  if (toggleBtn && sidebarLeft) {
+    toggleBtn.addEventListener("click", () => {
+      sidebarLeft.classList.toggle("tablet-hidden");
+      toggleBtn.classList.toggle("active");
+      setTimeout(() => {
+        window.dispatchEvent(new Event("resize"));
+      }, 100);
+    });
+  }
 }
 
 

@@ -687,10 +687,423 @@ header.navbar {
   background: rgba(240, 185, 11, 0.5);
 }
 
-/* ─── RESPONSIVE BEHAVIOR ─── */
-@media (max-width: 1200px) {
-  .top-ticker-tape { display: none; }
+/* ─── TIMEFRAME GROUP WRAPPER ─── */
+.timeframe-group-wrapper {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
-@media (max-width: 992px) {
-  .sidebar-left { display: none; }
+.timeframe-group-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── MOBILE BOTTOM NAVIGATION BAR (Pro Dock) ─── */
+.mobile-bottom-bar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: rgba(11, 14, 17, 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid var(--border-color);
+  z-index: 1050;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.mobile-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 6px 0;
+  transition: all 0.15s ease;
+  position: relative;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-nav-btn i {
+  font-size: 1.15rem;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.mobile-nav-btn.active {
+  color: var(--primary-accent);
+}
+.mobile-nav-btn.active i {
+  transform: scale(1.12);
+  color: var(--primary-accent);
+}
+.mobile-nav-btn .mob-badge {
+  position: absolute;
+  top: 5px;
+  right: 22%;
+  background: var(--accent-bullish);
+  color: #12161c;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 10px;
+  box-shadow: 0 0 6px rgba(14, 203, 129, 0.5);
+}
+
+/* ─── COMPREHENSIVE MULTI-SCREEN RESPONSIVE SUITE ─── */
+
+/* 1. Ultra-Wide & Large Monitors (1441px+) */
+@media (min-width: 1441px) {
+  :root {
+    --sidebar-left-width: 280px;
+    --sidebar-right-width: 380px;
+  }
+  .chart-metrics-strip {
+    font-size: 12px;
+  }
+}
+
+/* 2. Standard Laptops & MacBooks (1024px - 1440px) */
+@media (min-width: 1024px) and (max-width: 1440px) {
+  :root {
+    --sidebar-left-width: 250px;
+    --sidebar-right-width: 330px;
+  }
+  .top-ticker-tape {
+    max-width: 380px;
+  }
+  .chart-header-bar {
+    padding: 0 12px !important;
+  }
+  .chart-metrics-strip {
+    padding: 0 12px !important;
+  }
+}
+
+/* 3. Tablets & Foldables in Landscape/Portrait (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --sidebar-left-width: 220px;
+    --sidebar-right-width: 300px;
+    --header-height: 52px;
+  }
+  .top-ticker-tape,
+  .clock-display {
+    display: none !important;
+  }
+  .sidebar-left.tablet-hidden {
+    display: none !important;
+  }
+  .chart-header-bar {
+    height: auto;
+    min-height: 44px;
+    padding: 6px 10px !important;
+  }
+  .chart-metrics-strip {
+    padding: 0 10px !important;
+    font-size: 10.5px;
+  }
+  .position-hud-banner {
+    padding: 0 10px !important;
+    font-size: 10.5px;
+  }
+}
+
+/* 4. Mobile & iPhone Devices (<= 767px) */
+@media (max-width: 767px) {
+  :root {
+    --header-height: 50px;
+    --mobile-nav-height: 56px;
+  }
+
+  body {
+    overflow: hidden;
+    height: 100vh;
+    height: 100dvh;
+    width: 100vw;
+  }
+
+  /* Header adjustments */
+  header.navbar {
+    height: var(--header-height);
+    min-height: var(--header-height);
+    padding: 4px 10px !important;
+  }
+  .brand-logo-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 0.95rem;
+  }
+  .brand-title {
+    font-size: 1.15rem;
+  }
+  #navBalanceBox {
+    padding: 3px 7px !important;
+    font-size: 11px !important;
+  }
+  .telegram-status-pill {
+    padding: 3px 7px !important;
+    font-size: 11px !important;
+  }
+  .top-ticker-tape,
+  .nav-view-switcher,
+  .clock-display {
+    display: none !important;
+  }
+
+  /* Main Viewport fits screen cleanly above mobile bottom bar */
+  .dashboard-viewport {
+    height: calc(100dvh - var(--header-height) - var(--mobile-nav-height) - env(safe-area-inset-bottom, 0px));
+    height: calc(100vh - var(--header-height) - var(--mobile-nav-height));
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .main-view-container {
+    height: 100%;
+    width: 100%;
+    display: flex;
+  }
+
+  .terminal-view-wrapper {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ── Mobile Tab State Controls ── */
+  /* TAB 1: Chart (Default) */
+  .dashboard-viewport[data-mob-tab="chart"] .sidebar-left,
+  .dashboard-viewport:not([data-mob-tab]) .sidebar-left {
+    display: none !important;
+  }
+  .dashboard-viewport[data-mob-tab="chart"] .sidebar-right,
+  .dashboard-viewport:not([data-mob-tab]) .sidebar-right {
+    display: none !important;
+  }
+  .dashboard-viewport[data-mob-tab="chart"] .main-content-center,
+  .dashboard-viewport:not([data-mob-tab]) .main-content-center {
+    display: flex !important;
+    flex: 1;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .dashboard-viewport[data-mob-tab="chart"] #viewStrategyHub,
+  .dashboard-viewport:not([data-mob-tab]) #viewStrategyHub {
+    display: none !important;
+  }
+  .dashboard-viewport[data-mob-tab="chart"] #viewTerminal,
+  .dashboard-viewport:not([data-mob-tab]) #viewTerminal {
+    display: flex !important;
+    height: 100%;
+    width: 100%;
+  }
+
+  /* TAB 2: Watchlist */
+  .dashboard-viewport[data-mob-tab="watchlist"] .sidebar-left {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    flex: 1;
+    overflow-y: auto !important;
+    border-right: none !important;
+    z-index: 50;
+  }
+  .dashboard-viewport[data-mob-tab="watchlist"] .main-content-center,
+  .dashboard-viewport[data-mob-tab="watchlist"] .sidebar-right,
+  .dashboard-viewport[data-mob-tab="watchlist"] #viewStrategyHub {
+    display: none !important;
+  }
+  .dashboard-viewport[data-mob-tab="watchlist"] #viewTerminal {
+    display: flex !important;
+    height: 100%;
+    width: 100%;
+  }
+
+  /* TAB 3: Signals */
+  .dashboard-viewport[data-mob-tab="signals"] .sidebar-right {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    flex: 1;
+    overflow-y: auto !important;
+    border-left: none !important;
+    z-index: 50;
+  }
+  .dashboard-viewport[data-mob-tab="signals"] .main-content-center,
+  .dashboard-viewport[data-mob-tab="signals"] .sidebar-left,
+  .dashboard-viewport[data-mob-tab="signals"] #viewStrategyHub {
+    display: none !important;
+  }
+  .dashboard-viewport[data-mob-tab="signals"] #viewTerminal {
+    display: flex !important;
+    height: 100%;
+    width: 100%;
+  }
+
+  /* TAB 4: Strategy Hub */
+  .dashboard-viewport[data-mob-tab="strategy"] #viewTerminal {
+    display: none !important;
+  }
+  .dashboard-viewport[data-mob-tab="strategy"] #viewStrategyHub {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1;
+    overflow-y: auto !important;
+  }
+
+  /* TAB 5: Position */
+  .dashboard-viewport[data-mob-tab="position"] #viewTerminal {
+    display: flex !important;
+    height: 100%;
+    width: 100%;
+  }
+  .dashboard-viewport[data-mob-tab="position"] .sidebar-left,
+  .dashboard-viewport[data-mob-tab="position"] .sidebar-right,
+  .dashboard-viewport[data-mob-tab="position"] #viewStrategyHub {
+    display: none !important;
+  }
+  .dashboard-viewport[data-mob-tab="position"] .main-content-center {
+    display: flex !important;
+    flex: 1;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .dashboard-viewport[data-mob-tab="position"] .tradingview-wrapper {
+    display: none !important;
+  }
+  .dashboard-viewport[data-mob-tab="position"] #bottomPositionsDock {
+    display: block !important;
+    flex: 1 !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+  }
+  .dashboard-viewport[data-mob-tab="position"] #positionHudBanner {
+    display: flex !important;
+  }
+
+  /* Chart Header Bar on Mobile */
+  .chart-header-bar {
+    height: auto;
+    min-height: 42px;
+    max-height: none;
+    padding: 6px 8px !important;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chart-header-bar h2 {
+    font-size: 0.85rem !important;
+  }
+  .btn-tf {
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+
+  /* Chart Metrics Strip on Mobile */
+  .chart-metrics-strip {
+    height: 30px;
+    min-height: 30px;
+    max-height: 30px;
+    font-size: 10px;
+    padding: 0 8px !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .chart-metrics-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Floating Target Chips on Mobile */
+  .chart-floating-overlay {
+    top: 6px;
+    right: 8px;
+    gap: 4px;
+  }
+  .chip-floating {
+    padding: 3px 8px;
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  /* TradingView Canvas on Mobile */
+  .tradingview-wrapper {
+    flex: 1 1 0;
+    min-height: 260px;
+    width: 100%;
+  }
+
+  /* Position HUD Banner on Mobile */
+  .position-hud-banner {
+    height: auto;
+    min-height: 36px;
+    max-height: none;
+    padding: 6px 8px !important;
+    font-size: 10px;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  /* Strategy Hub Responsive Layout */
+  .hub-header-banner {
+    padding: 10px !important;
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .hub-header-banner > div:last-child {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .hub-strategies-track {
+    flex-direction: column;
+  }
+
+  /* Show Mobile Bottom Navigation */
+  .mobile-bottom-bar {
+    display: flex;
+  }
+
+  /* Modals on Mobile */
+  .modal-dialog {
+    margin: 10px;
+    max-width: calc(100% - 20px);
+  }
+  .modal-content {
+    border-radius: 12px;
+  }
+}
+
+/* 5. Compact Mobile Screens (<= 380px - iPhone SE, Mini) */
+@media (max-width: 380px) {
+  .brand-title {
+    font-size: 1.05rem;
+  }
+  #navBalanceBox span.fw-bold {
+    font-size: 0.72rem;
+  }
+  .mobile-nav-btn span {
+    font-size: 9px;
+  }
+  .mobile-nav-btn i {
+    font-size: 1.05rem;
+  }
 }
