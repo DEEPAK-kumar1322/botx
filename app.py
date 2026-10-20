@@ -4,7 +4,9 @@ BotX AI Trading Terminal - Unified Backend API & Web Server Runner.
 Starts FastAPI on port 8085 serving both API endpoints and the frontend dashboard.
 """
 
+import os
 import sys
+import threading
 from pathlib import Path
 import uvicorn
 
@@ -15,13 +17,29 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.api.server import app
 
-def start_server(host: str = "0.0.0.0", port: int = 8085):
+def run_delta_worker():
+    """Background worker for 24/7 Delta Exchange India Micro Scanner & Auto-Execution."""
+    if os.getenv("DELTA_API_KEY") and os.getenv("DELTA_API_SECRET"):
+        try:
+            from run_delta_micro_bot import DeltaMicroBot
+            print("[Cloud Worker] Starting 24/7 Delta Micro Trading Bot background worker...")
+            bot = DeltaMicroBot(auto_trade=True, max_margin_inr=float(os.getenv("MAX_MARGIN_INR", 25.0)))
+            bot.run(interval=60)
+        except Exception as e:
+            print(f"[Cloud Worker Error]: {e}")
+
+def start_server():
+    port = int(os.getenv("PORT", 8085))
+    host = "0.0.0.0"
     print(f"\n=======================================================")
     print(f"  BotX AI Trading Terminal Server")
-    print(f"  Dashboard (Local): http://localhost:{port}")
-    print(f"  Dashboard (Phone/Network): http://172.20.10.4:{port}")
-    print(f"  Interactive API Docs: http://localhost:{port}/docs")
+    print(f"  Dashboard: http://{host}:{port}")
+    print(f"  Interactive API Docs: http://{host}:{port}/docs")
     print(f"=======================================================\n")
+    
+    # Start Delta Micro Bot background worker thread
+    threading.Thread(target=run_delta_worker, daemon=True).start()
+    
     uvicorn.run("src.api.server:app", host=host, port=port, reload=False, log_level="info")
 
 if __name__ == "__main__":
