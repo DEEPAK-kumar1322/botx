@@ -37,8 +37,9 @@ def start_server():
     print(f"  Interactive API Docs: http://{host}:{port}/docs")
     print(f"=======================================================\n")
     
-    # Start Delta Micro Bot background worker thread
-    threading.Thread(target=run_delta_worker, daemon=True).start()
+    # Only start background worker thread if explicitly enabled (e.g. Render cloud deployment)
+    if os.getenv("RUN_EMBEDDED_WORKER", "false").lower() == "true":
+        threading.Thread(target=run_delta_worker, daemon=True).start()
     
     uvicorn.run("src.api.server:app", host=host, port=port, reload=False, log_level="info")
 

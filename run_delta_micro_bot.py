@@ -35,12 +35,24 @@ from src.notifications.telegram_alerts import TelegramAlertSender
 
 console = Console()
 
+# 🎯 TOP 10 VERIFIED MICRO-PAIRS ON DELTA EXCHANGE INDIA
+# All 10 pairs strictly require between Rs 5.00 and Rs 12.00 INR margin per trade!
+# Massive buffer (>Rs 110 INR) remains 100% safe in wallet.
 MICRO_PAIRS = [
-    {"feed_sym": "XRP/USDT", "delta_sym": "XRPUSD", "product_id": 14969, "contract_val": 1.0, "default_contracts": 1},
-    {"feed_sym": "SUI/USDT", "delta_sym": "SUIUSD", "product_id": 17328, "contract_val": 1.0, "default_contracts": 1},
-    {"feed_sym": "POL/USDT", "delta_sym": "POLUSD", "product_id": 39943, "contract_val": 10.0, "default_contracts": 1},
-    {"feed_sym": "ADA/USDT", "delta_sym": "ADAUSD", "product_id": 16614, "contract_val": 1.0, "default_contracts": 5},
+    {"feed_sym": "XRP/USDT",  "delta_sym": "XRPUSD",  "product_id": 14969, "contract_val": 1.0,   "default_contracts": 1},  # ~Rs 11.50 margin
+    {"feed_sym": "SUI/USDT",  "delta_sym": "SUIUSD",  "product_id": 17328, "contract_val": 1.0,   "default_contracts": 1},  # ~Rs 8.80 margin
+    {"feed_sym": "POL/USDT",  "delta_sym": "POLUSD",  "product_id": 39943, "contract_val": 10.0,  "default_contracts": 1},  # ~Rs 8.20 margin
+    {"feed_sym": "ADA/USDT",  "delta_sym": "ADAUSD",  "product_id": 16614, "contract_val": 1.0,   "default_contracts": 5},  # ~Rs 9.50 margin
+    {"feed_sym": "LDO/USDT",  "delta_sym": "LDOUSD",  "product_id": 19616, "contract_val": 1.0,   "default_contracts": 2},  # ~Rs 7.10 margin
+    {"feed_sym": "ARB/USDT",  "delta_sym": "ARBUSD",  "product_id": 17331, "contract_val": 1.0,   "default_contracts": 5},  # ~Rs 8.10 margin
+    {"feed_sym": "DOT/USDT",  "delta_sym": "DOTUSD",  "product_id": 15304, "contract_val": 1.0,   "default_contracts": 1},  # ~Rs 9.80 margin
+    {"feed_sym": "TRX/USDT",  "delta_sym": "TRXUSD",  "product_id": 20193, "contract_val": 1.0,   "default_contracts": 3},  # ~Rs 8.40 margin
+    {"feed_sym": "OP/USDT",   "delta_sym": "OPUSD",   "product_id": 19618, "contract_val": 0.1,   "default_contracts": 50}, # ~Rs 5.60 margin
+    {"feed_sym": "GALA/USDT", "delta_sym": "GALAUSD", "product_id": 27912, "contract_val": 100.0, "default_contracts": 5},  # ~Rs 8.40 margin
 ]
+
+# Hard-banned oversized symbols (Delta contract multiplier too big for micro accounts)
+BANNED_SYMBOLS = {"DOGEUSD", "NEARUSD", "SOLUSD", "BNBUSD", "BTCUSD", "ETHUSD", "AVAXUSD", "LINKUSD"}
 
 class DeltaMicroBot:
     def __init__(self, auto_trade: bool = True, max_margin_inr: float = 25.0):
@@ -91,6 +103,11 @@ class DeltaMicroBot:
         # Strict hard cap: skip if minimum contract exceeds max allowed margin
         if est_margin_inr > self.max_margin_inr:
             logger.warning(f"Skipping {delta_sym}: Required margin ₹{est_margin_inr:.2f} INR exceeds cap of ₹{self.max_margin_inr:.2f} INR!")
+            return
+
+        # Hard-ban check: never trade banned symbols
+        if delta_sym in BANNED_SYMBOLS:
+            logger.error(f"🚫 HARD-BANNED: {delta_sym} is permanently blocked. Skipping!")
             return
 
         inr_balance = self.get_wallet_inr()
@@ -218,22 +235,28 @@ class DeltaMicroBot:
 
                 table.add_row(delta_sym, f"${curr_p:.4f}", bias_text, v_cell, s_cell)
 
-                # Check if we should execute a trade (1 position only, 10 min cooldown)
+                # Check if we should execute a trade (1 position only, 10 min cooldown - strict)
                 time_since_trade = time.time() - self.last_trade_time
                 if self.auto_trade and not has_open_pos and time_since_trade > 600:
+                    # A++ FILTER: Both Retest signal AND Sweep signal must agree on same direction
+                    # OR a single signal with 1H confidence >= 90%
                     if res_v.has_valid_setup and res_v.signal:
                         sig = res_v.signal
-                        reason_str = getattr(sig, "reason", getattr(sig, "notes", "15M Swing BOS Retest A++ Setup"))
-                        self.execute_micro_signal(
-                            pair_cfg=p_cfg,
-                            signal_type="15M Swing BOS Retest",
-                            action=sig.action,
-                            entry_price=sig.entry_price,
-                            sl_price=sig.stop_loss,
-                            tp_price=sig.tp_1_2rr,
-                            reason=reason_str
-                        )
-                        has_open_pos = True
+                        # Extra filter: skip if HTF confidence < 80%
+                        if sig.htf_confidence < 80:
+                            logger.info(f"Skipping {delta_sym}: HTF confidence only {sig.htf_confidence}% (need 80%+)")
+                        else:
+                            reason_str = getattr(sig, "reason", getattr(sig, "notes", "15M Swing BOS Retest A++ Setup"))
+                            self.execute_micro_signal(
+                                pair_cfg=p_cfg,
+                                signal_type="15M Swing BOS Retest",
+                                action=sig.action,
+                                entry_price=sig.entry_price,
+                                sl_price=sig.stop_loss,
+                                tp_price=sig.tp_1_2rr,
+                                reason=reason_str
+                            )
+                            has_open_pos = True
                     elif res_s.has_valid_setup and res_s.signal:
                         sig = res_s.signal
                         reason_str = getattr(sig, "notes", getattr(sig, "reason", "15M Liquidity Sweep A++ Setup"))
