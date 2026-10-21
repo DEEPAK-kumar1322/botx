@@ -55,7 +55,7 @@ MICRO_PAIRS = [
 BANNED_SYMBOLS = {"DOGEUSD", "NEARUSD", "SOLUSD", "BNBUSD", "BTCUSD", "ETHUSD", "AVAXUSD", "LINKUSD"}
 
 class DeltaMicroBot:
-    def __init__(self, auto_trade: bool = True, max_margin_inr: float = 25.0):
+    def __init__(self, auto_trade: bool = True, max_margin_inr: float = 60.0):
         self.auto_trade = auto_trade
         self.max_margin_inr = max_margin_inr
         self.feed = UnifiedMarketFeed()
@@ -84,7 +84,7 @@ class DeltaMicroBot:
         except Exception:
             return 0.0
 
-    def execute_micro_signal(self, pair_cfg: Dict[str, Any], signal_type: str, action: str, entry_price: float, sl_price: float, tp_price: float, reason: str):
+    def execute_micro_signal(self, pair_cfg: Dict[str, Any], signal_type: str, action: str, entry_price: float, sl_price: float, tp_price: float, reason: str, is_high_conviction: bool = False):
         delta_sym = pair_cfg["delta_sym"]
         product_id = pair_cfg["product_id"]
         c_val = pair_cfg["contract_val"]
@@ -93,6 +93,16 @@ class DeltaMicroBot:
         # Calculate exact margin in INR at 10x leverage
         notional_usd = contracts * c_val * entry_price
         est_margin_inr = (notional_usd / 10.0) * 85.0
+
+        # High-Conviction Scaling: For A++ Liquidity Sweep setups, scale margin to Rs 45-55 INR
+        if is_high_conviction:
+            target_margin = min(50.0, self.max_margin_inr)
+            if est_margin_inr > 0 and est_margin_inr < target_margin:
+                multiplier = target_margin / est_margin_inr
+                contracts = max(1, int(contracts * multiplier))
+                notional_usd = contracts * c_val * entry_price
+                est_margin_inr = (notional_usd / 10.0) * 85.0
+                logger.info(f"💎 HIGH CONVICTION A++ SETUP: Scaled contracts to {contracts} (~Rs {est_margin_inr:.2f} INR margin)")
 
         # Adjust contracts down if margin exceeds safety limit
         if est_margin_inr > self.max_margin_inr:
@@ -277,7 +287,8 @@ class DeltaMicroBot:
                             entry_price=sig.entry_price,
                             sl_price=sig.stop_loss,
                             tp_price=target_tp,
-                            reason=reason_str
+                            reason=reason_str,
+                            is_high_conviction=True
                         )
                         has_open_pos = True
                     # 2. SECONDARY STRATEGY: 15M Swing BOS Retest (Strict 80%+ HTF Confidence)
@@ -323,7 +334,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--interval", type=int, default=60, help="Scan interval in seconds")
     parser.add_argument("--auto-trade", action="store_true", default=True, help="Auto execute signals")
-    parser.add_argument("--max-margin", type=float, default=25.0, help="Max INR margin per trade")
+    parser.add_argument("--max-margin", type=float, default=60.0, help="Max INR margin per trade")
     args = parser.parse_args()
 
     bot = DeltaMicroBot(auto_trade=args.auto_trade, max_margin_inr=args.max_margin)
