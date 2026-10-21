@@ -265,14 +265,25 @@ class DeltaMicroBot:
                 # Check if we should execute a trade (1 position only, 10 min cooldown - strict)
                 time_since_trade = time.time() - self.last_trade_time
                 if self.auto_trade and not has_open_pos and time_since_trade > 600:
-                    # A++ FILTER: Both Retest signal AND Sweep signal must agree on same direction
-                    # OR a single signal with 1H confidence >= 90%
-                    if res_v.has_valid_setup and res_v.signal:
+                    # 1. PRIMARY INSTITUTIONAL STRATEGY: 15M Liquidity Sweep Swing (1H Trend Aligned)
+                    if res_s.has_valid_setup and res_s.signal:
+                        sig = res_s.signal
+                        reason_str = getattr(sig, "notes", getattr(sig, "reason", "15M Liquidity Sweep Institutional Swing Setup"))
+                        target_tp = getattr(sig, "tp_1_3rr", getattr(sig, "tp_1_2rr", sig.entry_price * 1.02))
+                        self.execute_micro_signal(
+                            pair_cfg=p_cfg,
+                            signal_type="15M Liquidity Sweep Swing",
+                            action=sig.action,
+                            entry_price=sig.entry_price,
+                            sl_price=sig.stop_loss,
+                            tp_price=target_tp,
+                            reason=reason_str
+                        )
+                        has_open_pos = True
+                    # 2. SECONDARY STRATEGY: 15M Swing BOS Retest (Strict 80%+ HTF Confidence)
+                    elif res_v.has_valid_setup and res_v.signal:
                         sig = res_v.signal
-                        # Extra filter: skip if HTF confidence < 80%
-                        if sig.htf_confidence < 80:
-                            logger.info(f"Skipping {delta_sym}: HTF confidence only {sig.htf_confidence}% (need 80%+)")
-                        else:
+                        if sig.htf_confidence >= 80:
                             reason_str = getattr(sig, "reason", getattr(sig, "notes", "15M Swing BOS Retest A++ Setup"))
                             self.execute_micro_signal(
                                 pair_cfg=p_cfg,
@@ -284,19 +295,6 @@ class DeltaMicroBot:
                                 reason=reason_str
                             )
                             has_open_pos = True
-                    elif res_s.has_valid_setup and res_s.signal:
-                        sig = res_s.signal
-                        reason_str = getattr(sig, "notes", getattr(sig, "reason", "15M Liquidity Sweep A++ Setup"))
-                        self.execute_micro_signal(
-                            pair_cfg=p_cfg,
-                            signal_type="15M Liquidity Sweep",
-                            action=sig.action,
-                            entry_price=sig.entry_price,
-                            sl_price=sig.stop_loss,
-                            tp_price=sig.tp_1_2rr,
-                            reason=reason_str
-                        )
-                        has_open_pos = True
 
             except Exception as e:
                 table.add_row(delta_sym, "ERR", "-", f"[red]{str(e)[:30]}[/]", "-")
