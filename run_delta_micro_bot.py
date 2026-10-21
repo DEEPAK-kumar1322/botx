@@ -169,6 +169,24 @@ class DeltaMicroBot:
         has_open_pos = len(open_positions) > 0
         inr_bal = self.get_wallet_inr()
 
+        # Rehydrate active_trade if position exists on exchange but active_trade is None
+        if not self.active_trade and has_open_pos:
+            for p in open_positions:
+                p_sz = int(p.get("size", 0))
+                if p_sz > 0:
+                    self.active_trade = {
+                        "symbol": p.get("product_symbol"),
+                        "product_id": p.get("product_id"),
+                        "entry_price": float(p.get("entry_price", 0)),
+                        "contracts": p_sz,
+                        "side": "buy",
+                        "sl_price": float(p.get("entry_price", 0)) * 0.99,
+                        "tp_price": float(p.get("entry_price", 0)) * 1.02,
+                        "entry_time": time.time(),
+                    }
+                    logger.info(f"Rehydrated active trade from exchange: {self.active_trade['symbol']} ({p_sz} contracts @ ${self.active_trade['entry_price']:.4f})")
+                    break
+
         # Check if active trade has closed and send Telegram Exit Alert
         if self.active_trade:
             active_sym = self.active_trade["symbol"]
@@ -203,6 +221,15 @@ class DeltaMicroBot:
                         f"🔒 Capital strictly protected. Ready for next A++ setup."
                     )
                     self.telegram.send_raw_message(exit_msg)
+
+                    # Cancel remaining open/bracket orders for this product to prevent orphan orders
+                    prod_id = self.active_trade.get("product_id")
+                    if prod_id:
+                        try:
+                            self.client.request("DELETE", "/v2/orders/all", data={"product_id": prod_id})
+                            logger.info(f"Cleaned up remaining bracket orders for product {prod_id}")
+                        except Exception as ce:
+                            logger.warning(f"Order cleanup warning: {ce}")
                 except Exception as e:
                     logger.error(f"Error sending exit alert: {e}")
                 self.active_trade = None
