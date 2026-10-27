@@ -4,6 +4,8 @@ Crypto market data provider using CCXT for standardized real-time market data ac
 
 from typing import List, Optional
 from datetime import datetime, timezone
+import time
+import requests
 import ccxt
 from loguru import logger
 
@@ -21,7 +23,7 @@ class CryptoDataFeed(MarketDataFeed):
 
         config = {
             "enableRateLimit": True,
-            "timeout": 15000,
+            "timeout": 2500,
         }
         if api_key:
             config["apiKey"] = api_key
@@ -71,21 +73,71 @@ class CryptoDataFeed(MarketDataFeed):
             asks=asks,
         )
 
+    def _fetch_delta_candles(self, symbol: str, timeframe: str = "15m", limit: int = 30) -> List[CandleData]:
+        """Fetch candles directly from Delta Exchange India chart history (zero ISP blocking)."""
+        try:
+            delta_sym = symbol.replace("/", "").replace("USDT", "USD")
+            res_map = {"1m": "1", "5m": "5", "15m": "15", "30m": "30", "1h": "60", "4h": "240", "1d": "1D"}
+            res = res_map.get(timeframe, "15")
+            sec_per_candle = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}.get(timeframe, 900)
+
+            now = int(time.time())
+            start = now - (sec_per_candle * (limit + 15))
+
+            url = "https://api.india.delta.exchange/v2/chart/history"
+            r = requests.get(url, params={"symbol": delta_sym, "resolution": res, "from": start, "to": now}, timeout=5)
+            data = r.json()
+            if not data.get("success"):
+                return []
+            res_data = data.get("result", {})
+            closes = res_data.get("c", [])
+            highs = res_data.get("h", [])
+            lows = res_data.get("l", [])
+            opens = res_data.get("o", [])
+            volumes = res_data.get("v", [])
+            times = res_data.get("t", [])
+
+            candles: List[CandleData] = []
+            for i in range(len(closes)):
+                candles.append(CandleData(
+                    timestamp=datetime.fromtimestamp(times[i], tz=timezone.utc),
+                    open=float(opens[i]),
+                    high=float(highs[i]),
+                    low=float(lows[i]),
+                    close=float(closes[i]),
+                    volume=float(volumes[i]) if volumes else 0.0,
+                ))
+            return candles[-limit:]
+        except Exception as e:
+            logger.warning(f"Delta native candle fetch failed for {symbol}: {e}")
+            return []
+
     def fetch_recent_candles(self, symbol: str, timeframe: str = "1m", limit: int = 10) -> List[CandleData]:
-        """Fetch recent OHLCV candlesticks."""
+        """Fetch recent OHLCV candlesticks (Delta Exchange native primary, CCXT fallback)."""
         logger.debug(f"Fetching candles for {symbol} ({timeframe}, limit={limit})")
-        raw_candles = self.client.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
-        
-        candles: List[CandleData] = []
-        for c in raw_candles:
-            ts, o, h, l, cl, v = c[:6]
-            dt = datetime.fromtimestamp(ts / 1000.0, tz=timezone.utc)
-            candles.append(CandleData(
-                timestamp=dt,
-                open=float(o),
-                high=float(h),
-                low=float(l),
-                close=float(cl),
-                volume=float(v)
-            ))
-        return candles
+        # 1. Try fast, reliable Delta Exchange native feed first (zero ISP blocking in India)
+        delta_candles = self._fetch_delta_candles(symbol, timeframe=timeframe, limit=limit)
+        if delta_candles and len(delta_candles) >= 5:
+            return delta_candles
+
+        # 2. Fallback to CCXT exchange feed if Delta doesn't have symbol
+        try:
+            raw_candles = self.client.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+            candles: List[CandleData] = []
+            for c in raw_candles:
+                ts, o, h, l, cl, v = c[:6]
+                dt = datetime.fromtimestamp(ts / 1000.0, tz=timezone.utc)
+                candles.append(CandleData(
+                    timestamp=dt,
+                    open=float(o),
+                    high=float(h),
+                    low=float(l),
+                    close=float(cl),
+                    volume=float(v)
+                ))
+            if candles:
+                return candles
+        except Exception as e:
+            logger.debug(f"CCXT candle fetch fallback failed for {symbol}: {e}")
+
+        return delta_candles

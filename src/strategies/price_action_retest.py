@@ -149,8 +149,13 @@ class PriceActionRetestAnalyzer:
 
                     if is_upper_wick_rejection or is_bearish_engulfing:
                         conf_type = "Long Wick Rejection" if is_upper_wick_rejection else "Bearish Engulfing"
-                        buffer = last_closed.close * 0.0005
-                        stop_loss = round(last_closed.high + buffer, 4)
+                        # Calculate ATR (14-period) on closed candles to avoid retail stop hunts
+                        ranges = [max(c.high - c.low, abs(c.high - prev.close), abs(c.low - prev.close)) for c, prev in zip(closed_candles[1:], closed_candles[:-1])]
+                        atr = sum(ranges[-14:]) / min(len(ranges), 14) if ranges else last_closed.close * 0.005
+
+                        # Structural SL: Above highest high of recent structural candles + 0.5x ATR buffer
+                        recent_high = max(c.high for c in closed_candles[-4:])
+                        stop_loss = round(recent_high + max(atr * 0.5, last_closed.close * 0.003), 4)
                         risk = stop_loss - last_closed.close
 
                         if risk > 0:
@@ -201,8 +206,13 @@ class PriceActionRetestAnalyzer:
 
                     if is_lower_wick_rejection or is_bullish_engulfing:
                         conf_type = "Long Wick Rejection" if is_lower_wick_rejection else "Bullish Engulfing"
-                        buffer = last_closed.close * 0.0005
-                        stop_loss = round(last_closed.low - buffer, 4)
+                        # Calculate ATR (14-period) on closed candles to avoid retail stop hunts
+                        ranges = [max(c.high - c.low, abs(c.high - prev.close), abs(c.low - prev.close)) for c, prev in zip(closed_candles[1:], closed_candles[:-1])]
+                        atr = sum(ranges[-14:]) / min(len(ranges), 14) if ranges else last_closed.close * 0.005
+
+                        # Structural SL: Below lowest low of recent structural candles - 0.5x ATR buffer
+                        recent_low = min(c.low for c in closed_candles[-4:])
+                        stop_loss = round(recent_low - max(atr * 0.5, last_closed.close * 0.003), 4)
                         risk = last_closed.close - stop_loss
 
                         if risk > 0:

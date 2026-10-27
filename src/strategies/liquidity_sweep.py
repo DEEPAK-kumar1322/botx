@@ -309,19 +309,26 @@ class LiquiditySweepAnalyzer:
             if not confirmation_type:
                 continue
 
-            entry = round(live_price, 2)
-            buffer = max(entry * 0.0008, (entry - sweep_low) * 0.10)
-            sl = round(sweep_low - buffer, 2)
-            risk = max(entry - sl, entry * 0.0015)
+            # Smart precision and ATR-based buffer to survive institutional stop-loss sweeps
+            prec = 4 if live_price < 10.0 else 2
+            entry = round(live_price, prec)
+            
+            # Calculate ATR for breathing room
+            ranges = [max(c.high - c.low, abs(c.high - prev.close), abs(c.low - prev.close)) for c, prev in zip(closed_candles[1:], closed_candles[:-1])]
+            atr = sum(ranges[-14:]) / min(len(ranges), 14) if ranges else entry * 0.005
+            buffer = max(atr * 0.5, entry * 0.003)
+            
+            sl = round(sweep_low - buffer, prec)
+            risk = max(entry - sl, entry * 0.002)
 
             # Do not chase if entry is already > 1.5R away from swept level
             if (entry - swept_level) > (risk * 1.5):
                 continue
 
-            tp_1_2rr = round(entry + (risk * 2.0), 2)
-            tp_1_3rr = round(entry + (risk * 3.0), 2)
+            tp_1_2rr = round(entry + (risk * 2.0), prec)
+            tp_1_3rr = round(entry + (risk * 3.0), prec)
             higher_res = [r for r in resistance_levels if r > tp_1_2rr]
-            next_liq = round(min(higher_res), 2) if higher_res else tp_1_3rr
+            next_liq = round(min(higher_res), prec) if higher_res else tp_1_3rr
 
             # Strict HTF alignment: Longs allowed when 1H is BULLISH (or RANGING at major support)
             htf_aligned = (htf_bias == "BULLISH")
@@ -416,18 +423,25 @@ class LiquiditySweepAnalyzer:
             if not confirmation_type:
                 continue
 
-            entry = round(live_price, 2)
-            buffer = max(entry * 0.0008, (sweep_high - entry) * 0.10)
-            sl = round(sweep_high + buffer, 2)
-            risk = max(sl - entry, entry * 0.0015)
+            # Smart precision and ATR-based buffer to survive institutional stop-loss sweeps
+            prec = 4 if live_price < 10.0 else 2
+            entry = round(live_price, prec)
+            
+            # Calculate ATR for breathing room
+            ranges = [max(c.high - c.low, abs(c.high - prev.close), abs(c.low - prev.close)) for c, prev in zip(closed_candles[1:], closed_candles[:-1])]
+            atr = sum(ranges[-14:]) / min(len(ranges), 14) if ranges else entry * 0.005
+            buffer = max(atr * 0.5, entry * 0.003)
+
+            sl = round(sweep_high + buffer, prec)
+            risk = max(sl - entry, entry * 0.002)
 
             if (swept_level - entry) > (risk * 1.5):
                 continue
 
-            tp_1_2rr = round(entry - (risk * 2.0), 2)
-            tp_1_3rr = round(entry - (risk * 3.0), 2)
+            tp_1_2rr = round(entry - (risk * 2.0), prec)
+            tp_1_3rr = round(entry - (risk * 3.0), prec)
             lower_sup = [s for s in support_levels if s < tp_1_2rr]
-            next_liq = round(max(lower_sup), 2) if lower_sup else tp_1_3rr
+            next_liq = round(max(lower_sup), prec) if lower_sup else tp_1_3rr
 
             # Strict HTF alignment: Shorts allowed when 1H is BEARISH
             htf_aligned = (htf_bias == "BEARISH")

@@ -60,5 +60,7 @@ htmlcov/
 .position_state.json
 .alert_history.json
 whatsapp_service/auth_info_baileys/
+whatsapp_service/auth_info/
+reference_skills/
 whatsapp_service/node_modules/
 node_modules/
