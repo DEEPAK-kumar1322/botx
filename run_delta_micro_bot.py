@@ -176,6 +176,10 @@ class DeltaMicroBot:
                 self.telegram.send_raw_message(tg_msg)
             except Exception as e:
                 logger.warning(f"Telegram alert error: {e}")
+            return True
+        else:
+            logger.error(f"Failed to execute {delta_sym}: {res.get('error')}")
+            return False
 
     def scan_cycle(self, cycle_num: int):
         table = Table(title=f"Delta India Swing Scanner Cycle #{cycle_num} - {time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -313,31 +317,12 @@ class DeltaMicroBot:
                     signal_reason = ""
                     rec_contracts = None
 
-                    # Priority 1: 15M Institutional Liquidity Sweep (1:1 RR)
+                    # User Mandate: EXCLUSIVELY execute 15M Institutional Liquidity Sweep Strategy (1:1 Quick RR)
                     if res_s.has_valid_setup and res_s.signal:
                         chosen_signal = res_s.signal
                         signal_label = f"15M Liquidity Sweep 1:1 (RVOL {chosen_signal.relative_volume:.1f}x)"
                         signal_reason = f"A+ 15M Sweep of ${chosen_signal.swept_level} with 1:1 RR"
                         rec_contracts = chosen_signal.recommended_contracts
-
-                    # Priority 2: 4H/30M POC Pullback with Institutional Confluence
-                    elif res_poc.has_valid_setup and res_poc.signal:
-                        chosen_signal = res_poc.signal
-                        risk_dist = abs(chosen_signal.entry_price - chosen_signal.stop_loss)
-                        # Quick 1:1 RR target
-                        tp_1_1 = chosen_signal.entry_price + risk_dist if chosen_signal.action.upper() == "BUY" else chosen_signal.entry_price - risk_dist
-                        chosen_signal.take_profit = tp_1_1
-                        signal_label = f"30M POC Pullback (POC ${res_poc.poc_price:.4f})"
-                        signal_reason = f"Institutional POC Pullback at ${res_poc.poc_price:.4f} with 1:1 RR"
-
-                    # Priority 3: 15M Price Action Retest Scalper
-                    elif res_v.has_valid_setup and res_v.signal:
-                        chosen_signal = res_v.signal
-                        risk_dist = abs(chosen_signal.entry_price - chosen_signal.stop_loss)
-                        tp_1_1 = chosen_signal.entry_price + risk_dist if chosen_signal.action.upper() == "BUY" else chosen_signal.entry_price - risk_dist
-                        chosen_signal.take_profit = tp_1_1
-                        signal_label = f"15M Retest Scalp ({chosen_signal.pattern})"
-                        signal_reason = f"15M {chosen_signal.pattern} Retest with 1:1 RR"
 
                     if chosen_signal:
                         entry_p = chosen_signal.entry_price
@@ -356,7 +341,7 @@ class DeltaMicroBot:
 
                         # Execute if odds are >= 45% (filter out trades with negative expectancy)
                         if sim.target_prob >= 45.0:
-                            self.execute_micro_signal(
+                            success = self.execute_micro_signal(
                                 pair_cfg=p_cfg,
                                 signal_type=signal_label,
                                 action=chosen_signal.action,
@@ -367,8 +352,11 @@ class DeltaMicroBot:
                                 is_high_conviction=True,
                                 recommended_contracts=rec_contracts,
                             )
-                            has_open_pos = True
-                            self.last_trade_time = time.time()
+                            if success:
+                                has_open_pos = True
+                                self.last_trade_time = time.time()
+                            else:
+                                logger.warning(f"Order placement on {delta_sym} did not complete. Cooldown not applied.")
                         else:
                             logger.warning(f"Skipping {delta_sym}: Monte Carlo odds too low ({sim.target_prob}% target vs {sim.stop_prob}% stop).")
 
