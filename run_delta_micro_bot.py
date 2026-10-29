@@ -308,37 +308,67 @@ class DeltaMicroBot:
                 # Check if we should execute a trade (1 position only, 10 min cooldown - strict)
                 time_since_trade = time.time() - self.last_trade_time
                 if self.auto_trade and not has_open_pos and time_since_trade > 600:
-                    # User Directive: EXCLUSIVELY trade 15M Institutional Liquidity Sweep Strategy with 1:1 RR
+                    chosen_signal = None
+                    signal_label = ""
+                    signal_reason = ""
+                    rec_contracts = None
+
+                    # Priority 1: 15M Institutional Liquidity Sweep (1:1 RR)
                     if res_s.has_valid_setup and res_s.signal:
-                        sig = res_s.signal
-                        entry_p = sig.entry_price
-                        sl_p = sig.stop_loss
-                        tp_1_1 = sig.take_profit
-                        
+                        chosen_signal = res_s.signal
+                        signal_label = f"15M Liquidity Sweep 1:1 (RVOL {chosen_signal.relative_volume:.1f}x)"
+                        signal_reason = f"A+ 15M Sweep of ${chosen_signal.swept_level} with 1:1 RR"
+                        rec_contracts = chosen_signal.recommended_contracts
+
+                    # Priority 2: 4H/30M POC Pullback with Institutional Confluence
+                    elif res_poc.has_valid_setup and res_poc.signal:
+                        chosen_signal = res_poc.signal
+                        risk_dist = abs(chosen_signal.entry_price - chosen_signal.stop_loss)
+                        # Quick 1:1 RR target
+                        tp_1_1 = chosen_signal.entry_price + risk_dist if chosen_signal.action.upper() == "BUY" else chosen_signal.entry_price - risk_dist
+                        chosen_signal.take_profit = tp_1_1
+                        signal_label = f"30M POC Pullback (POC ${res_poc.poc_price:.4f})"
+                        signal_reason = f"Institutional POC Pullback at ${res_poc.poc_price:.4f} with 1:1 RR"
+
+                    # Priority 3: 15M Price Action Retest Scalper
+                    elif res_v.has_valid_setup and res_v.signal:
+                        chosen_signal = res_v.signal
+                        risk_dist = abs(chosen_signal.entry_price - chosen_signal.stop_loss)
+                        tp_1_1 = chosen_signal.entry_price + risk_dist if chosen_signal.action.upper() == "BUY" else chosen_signal.entry_price - risk_dist
+                        chosen_signal.take_profit = tp_1_1
+                        signal_label = f"15M Retest Scalp ({chosen_signal.pattern})"
+                        signal_reason = f"15M {chosen_signal.pattern} Retest with 1:1 RR"
+
+                    if chosen_signal:
+                        entry_p = chosen_signal.entry_price
+                        sl_p = chosen_signal.stop_loss
+                        tp_p = chosen_signal.take_profit
+
                         # Pre-Trade Monte Carlo Validation (from trader-timemachine)
                         sim = self.mc_validator.simulate(
                             c_15m,
-                            action=sig.action,
+                            action=chosen_signal.action,
                             entry_price=entry_p,
                             stop_loss=sl_p,
-                            take_profit=tp_1_1,
+                            take_profit=tp_p,
                         )
                         logger.info(f"🎲 Monte Carlo Replay on {delta_sym}: Target {sim.target_prob}% | Stop {sim.stop_prob}% | Verdict: {sim.verdict}")
 
-                        # Execute if odds are >= 45% (filter out trades with heavy negative expectancy)
+                        # Execute if odds are >= 45% (filter out trades with negative expectancy)
                         if sim.target_prob >= 45.0:
                             self.execute_micro_signal(
                                 pair_cfg=p_cfg,
-                                signal_type=f"15M Liquidity Sweep 1:1 (RVOL {sig.relative_volume:.1f}x)",
-                                action=sig.action,
+                                signal_type=signal_label,
+                                action=chosen_signal.action,
                                 entry_price=entry_p,
                                 sl_price=sl_p,
-                                tp_price=tp_1_1,
-                                reason=f"A+ 15M Sweep of ${sig.swept_level} with 1:1 RR. MC Target {sim.target_prob}%.",
+                                tp_price=tp_p,
+                                reason=f"{signal_reason}. MC Target {sim.target_prob}%.",
                                 is_high_conviction=True,
-                                recommended_contracts=sig.recommended_contracts,
+                                recommended_contracts=rec_contracts,
                             )
                             has_open_pos = True
+                            self.last_trade_time = time.time()
                         else:
                             logger.warning(f"Skipping {delta_sym}: Monte Carlo odds too low ({sim.target_prob}% target vs {sim.stop_prob}% stop).")
 
