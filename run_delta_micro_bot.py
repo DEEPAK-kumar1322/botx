@@ -15,8 +15,17 @@ Designed for micro-capital accounts (e.g. ₹131 INR / $1.55 USD):
 """
 
 import os
+import sys
+import json
 import time
 import argparse
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 from typing import List, Dict, Any, Optional
 from loguru import logger
 from rich.console import Console
@@ -37,6 +46,35 @@ from src.notifications.whatsapp_alerts import WhatsAppAlertSender
 from src.notifications.telegram_alerts import TelegramAlertSender
 
 console = Console()
+
+PAPER_STATE_FILE = "data/paper_account.json"
+
+def load_paper_account() -> Dict[str, Any]:
+    os.makedirs("data", exist_ok=True)
+    if os.path.exists(PAPER_STATE_FILE):
+        try:
+            with open(PAPER_STATE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "balance_inr": 110.88,
+        "initial_balance_inr": 110.88,
+        "trades": [],
+        "total_trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "breakevens": 0,
+        "active_trade": None,
+    }
+
+def save_paper_account(data: Dict[str, Any]):
+    os.makedirs("data", exist_ok=True)
+    try:
+        with open(PAPER_STATE_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        logger.warning(f"Could not save paper account: {e}")
 
 # 🎯 TOP 10 VERIFIED MICRO-PAIRS ON DELTA EXCHANGE INDIA
 # All 10 pairs strictly require between Rs 5.00 and Rs 12.00 INR margin per trade!
@@ -59,8 +97,9 @@ MICRO_PAIRS = [
 BANNED_SYMBOLS = {"DOGEUSD", "NEARUSD", "SOLUSD", "BNBUSD", "BTCUSD", "ETHUSD", "AVAXUSD", "LINKUSD"}
 
 class DeltaMicroBot:
-    def __init__(self, auto_trade: bool = True, max_margin_inr: float = 50.0):
+    def __init__(self, auto_trade: bool = True, max_margin_inr: float = 50.0, paper_mode: bool = True):
         self.auto_trade = auto_trade
+        self.paper_mode = paper_mode
         self.max_margin_inr = min(max_margin_inr, 60.0)
         self.feed = UnifiedMarketFeed()
         self.video_strat = PriceActionRetestAnalyzer()
@@ -75,9 +114,20 @@ class DeltaMicroBot:
         )
         self.telegram = TelegramAlertSender()
         self.last_trade_time = 0
-        self.active_trade: Optional[Dict[str, Any]] = None
+        self.paper_state = load_paper_account() if self.paper_mode else {}
+        self.active_trade: Optional[Dict[str, Any]] = self.paper_state.get("active_trade") if self.paper_mode else None
 
     def check_open_positions(self) -> List[Dict[str, Any]]:
+        if self.paper_mode:
+            if self.active_trade:
+                p_sz = self.active_trade["contracts"] if self.active_trade["side"] == "buy" else -self.active_trade["contracts"]
+                return [{
+                    "product_symbol": self.active_trade["symbol"],
+                    "product_id": self.active_trade.get("product_id"),
+                    "size": p_sz,
+                    "entry_price": self.active_trade["entry_price"],
+                }]
+            return []
         try:
             return self.client.get_open_positions()
         except Exception as e:
@@ -85,6 +135,8 @@ class DeltaMicroBot:
             return []
 
     def get_wallet_inr(self) -> float:
+        if self.paper_mode:
+            return float(self.paper_state.get("balance_inr", 110.88))
         try:
             summary = self.client.get_account_summary()
             return float(summary.get("inr_balance", 0.0))
@@ -123,17 +175,57 @@ class DeltaMicroBot:
         # Strict hard cap: skip if minimum contract exceeds max allowed margin
         if est_margin_inr > self.max_margin_inr:
             logger.warning(f"Skipping {delta_sym}: Required margin ₹{est_margin_inr:.2f} INR exceeds cap of ₹{self.max_margin_inr:.2f} INR!")
-            return
+            return False
 
         # Hard-ban check: never trade banned symbols
         if delta_sym in BANNED_SYMBOLS:
             logger.error(f"🚫 HARD-BANNED: {delta_sym} is permanently blocked. Skipping!")
-            return
+            return False
 
         inr_balance = self.get_wallet_inr()
-        logger.info(f"🚨 EXECUTING MICRO TRADE ON DELTA: {action} {contracts} {delta_sym} @ ${entry_price:.4f} (Margin: Rs {est_margin_inr:.2f} | Balance: Rs {inr_balance:.2f})")
-
         side = "buy" if action.upper() == "BUY" else "sell"
+
+        # 🧪 DEMO / PAPER TRADING EXECUTION
+        if self.paper_mode:
+            self.last_trade_time = time.time()
+            self.active_trade = {
+                "symbol": delta_sym,
+                "product_id": product_id,
+                "contract_val": c_val,
+                "entry_price": entry_price,
+                "contracts": contracts,
+                "side": side,
+                "sl_price": sl_price,
+                "tp_price": tp_price,
+                "entry_time": time.time(),
+                "ctc_activated": False,
+            }
+            self.paper_state["active_trade"] = self.active_trade
+            save_paper_account(self.paper_state)
+            logger.info(f"🧪 [DEMO TRADE SIMULATED] {action} {contracts} {delta_sym} @ ${entry_price:.4f} (Margin: Rs {est_margin_inr:.2f} | Balance: Rs {inr_balance:.2f})")
+
+            try:
+                tg_msg = (
+                    f"🧪 <b>[DEMO / PAPER TRADE EXECUTED]</b> 🧪\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🪙 <b>Pair:</b> <code>{delta_sym}</code> ({action.upper()})\n"
+                    f"🎯 <b>Strategy:</b> <b>{signal_type}</b>\n"
+                    f"🧠 <b>Logic:</b> <i>{reason}</i>\n"
+                    f"📦 <b>Size:</b> <code>{contracts} Contract(s)</code> (~${notional_usd:.2f} Notional)\n"
+                    f"💰 <b>Demo Margin:</b> <b>~₹{est_margin_inr:.2f} INR</b>\n"
+                    f"📍 <b>Entry Price:</b> <code>${entry_price:.4f}</code>\n"
+                    f"🛑 <b>Strict SL:</b> <code>${sl_price:.4f}</code> (Max Risk: <b>-₹{(contracts * abs(entry_price - sl_price) * c_val * 85.0):.2f} INR</b>)\n"
+                    f"🎯 <b>Target TP:</b> <code>${tp_price:.4f}</code> (Target Gain: <b>+₹{(contracts * abs(tp_price - entry_price) * c_val * 85.0):.2f} INR</b>)\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🔒 <i>Real account is 100% frozen & safe. Zero real money at risk!</i>"
+                )
+                self.telegram.send_raw_message(tg_msg)
+            except Exception as e:
+                logger.warning(f"Telegram alert error: {e}")
+            return True
+
+        # 🚨 LIVE REAL MONEY EXECUTION ON DELTA EXCHANGE
+        logger.info(f"🚨 EXECUTING MICRO TRADE ON DELTA: {action} {contracts} {delta_sym} @ ${entry_price:.4f} (Margin: Rs {est_margin_inr:.2f} | Balance: Rs {inr_balance:.2f})")
         res = self.client.place_order(
             product_id=product_id,
             size=contracts,
@@ -149,6 +241,7 @@ class DeltaMicroBot:
             self.active_trade = {
                 "symbol": delta_sym,
                 "product_id": product_id,
+                "contract_val": c_val,
                 "entry_price": entry_price,
                 "contracts": contracts,
                 "side": side,
@@ -183,7 +276,8 @@ class DeltaMicroBot:
             return False
 
     def scan_cycle(self, cycle_num: int):
-        table = Table(title=f"Delta India SMC Master Blueprint Scanner Cycle #{cycle_num} - {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        mode_tag = "[DEMO / PAPER TRADING]" if self.paper_mode else "[LIVE REAL MONEY]"
+        table = Table(title=f"Delta India SMC Blueprint Scanner Cycle #{cycle_num} {mode_tag} - {time.strftime('%Y-%m-%d %H:%M:%S')}")
         table.add_column("Pair", style="cyan", justify="left")
         table.add_column("Price", style="white", justify="right")
         table.add_column("50 EMA Macro", justify="center")
@@ -195,8 +289,8 @@ class DeltaMicroBot:
         has_open_pos = len(open_positions) > 0
         inr_bal = self.get_wallet_inr()
 
-        # Rehydrate active_trade if position exists on exchange but active_trade is None
-        if not self.active_trade and has_open_pos:
+        # Rehydrate active_trade if position exists on exchange (live mode only)
+        if not self.paper_mode and not self.active_trade and has_open_pos:
             for p in open_positions:
                 p_sz = int(p.get("size", 0))
                 if p_sz != 0:
@@ -217,32 +311,150 @@ class DeltaMicroBot:
         # Check active trade for Cost-to-Cost (CTC) Trailing & Exit Alerts
         if self.active_trade:
             active_sym = self.active_trade["symbol"]
-            matching = [p for p in open_positions if p.get("product_symbol") == active_sym and int(p.get("size", 0)) != 0]
-            if matching:
-                # 🛡️ ACTIVE TRADE COST-TO-COST (CTC) TRAILING CHECK
-                try:
-                    entry_p = float(self.active_trade["entry_price"])
-                    sl_p = float(self.active_trade["sl_price"])
-                    tp_p = float(self.active_trade["tp_price"])
-                    side_trade = self.active_trade["side"]
-                    ctc_done = self.active_trade.get("ctc_activated", False)
-                    prod_id = self.active_trade.get("product_id")
-                    pos_size = abs(int(matching[0].get("size", self.active_trade.get("contracts", 1))))
+            entry_p = float(self.active_trade["entry_price"])
+            sl_p = float(self.active_trade["sl_price"])
+            tp_p = float(self.active_trade["tp_price"])
+            side_trade = self.active_trade["side"]
+            contracts = self.active_trade.get("contracts", 1)
+            c_val = self.active_trade.get("contract_val", 1.0)
+            ctc_done = self.active_trade.get("ctc_activated", False)
 
-                    if not ctc_done and prod_id:
-                        ticker = self.client.get_ticker(active_sym)
-                        mark_p = float(ticker.get("mark_price", 0)) if ticker else 0.0
+            # Fetch live ticker for this symbol
+            ticker = self.client.get_ticker(active_sym)
+            mark_p = float(ticker.get("mark_price", 0)) if ticker else 0.0
 
-                        if mark_p > 0:
+            # 🧪 DEMO / PAPER TRADING ENGINE
+            if self.paper_mode:
+                if mark_p > 0:
+                    # 1. Cost-to-Cost (CTC) Trailing Check
+                    trigger_ctc = False
+                    if not ctc_done:
+                        if side_trade == "buy" and (tp_p > entry_p):
+                            dist = tp_p - entry_p
+                            if mark_p >= entry_p + (0.45 * dist):
+                                trigger_ctc = True
+                        elif side_trade == "sell" and (entry_p > tp_p):
+                            dist = entry_p - tp_p
+                            if mark_p <= entry_p - (0.45 * dist):
+                                trigger_ctc = True
+
+                        if trigger_ctc:
+                            self.active_trade["ctc_activated"] = True
+                            self.active_trade["sl_price"] = entry_p
+                            self.paper_state["active_trade"] = self.active_trade
+                            save_paper_account(self.paper_state)
+                            logger.info(f"🛡️ [DEMO CTC TRIGGERED] {active_sym} live price ${mark_p:.4f} covered 45%+ of target! SL moved to Entry ${entry_p:.4f}")
+                            ctc_msg = (
+                                f"🛡️ <b>[DEMO CTC ACTIVATED - 100% RISK-FREE]</b> 🛡️\n"
+                                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                                f"🪙 <b>Pair:</b> <code>{active_sym}</code>\n"
+                                f"📈 <b>Live Price:</b> <code>${mark_p:.4f}</code> (Hit 45%+ of target!)\n"
+                                f"🛑 <b>Virtual SL Shifted:</b> <code>${sl_p:.4f}</code> ➡️ <b>Entry ${entry_p:.4f}</b>\n"
+                                f"🎯 <b>Target TP:</b> <code>${tp_p:.4f}</code>\n"
+                                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                                f"✨ <i>Demo trade is now 100% Risk-Free! Real capital untouched.</i>"
+                            )
+                            self.telegram.send_raw_message(ctc_msg)
+
+                    # 2. Check Take-Profit Hit
+                    is_tp_hit = (side_trade == "buy" and mark_p >= tp_p) or (side_trade == "sell" and mark_p <= tp_p)
+                    # 3. Check Stop-Loss Hit
+                    is_sl_hit = (side_trade == "buy" and mark_p <= sl_p) or (side_trade == "sell" and mark_p >= sl_p)
+
+                    if is_tp_hit:
+                        pnl_usd = contracts * abs(tp_p - entry_p) * c_val
+                        pnl_inr = pnl_usd * 85.0
+                        self.paper_state["balance_inr"] = float(self.paper_state.get("balance_inr", 110.88)) + pnl_inr
+                        self.paper_state["total_trades"] = self.paper_state.get("total_trades", 0) + 1
+                        self.paper_state["wins"] = self.paper_state.get("wins", 0) + 1
+                        self.paper_state["trades"].append({
+                            "symbol": active_sym,
+                            "side": side_trade,
+                            "entry": entry_p,
+                            "exit": mark_p,
+                            "pnl_inr": pnl_inr,
+                            "outcome": "WIN",
+                            "time": time.strftime('%Y-%m-%d %H:%M:%S'),
+                        })
+                        self.paper_state["active_trade"] = None
+                        save_paper_account(self.paper_state)
+                        self.active_trade = None
+
+                        tp_msg = (
+                            f"🎉 <b>[DEMO TAKE-PROFIT HIT - PROFIT BOOKED!]</b> 🎉\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🪙 <b>Pair:</b> <code>{active_sym}</code> ({side_trade.upper()})\n"
+                            f"📍 <b>Entry Price:</b> <code>${entry_p:.4f}</code>\n"
+                            f"🏁 <b>Exit Price:</b> <code>${mark_p:.4f}</code>\n"
+                            f"💰 <b>Demo PnL Added:</b> <b>+₹{pnl_inr:.2f} INR</b> (+${pnl_usd:.4f})\n"
+                            f"📈 <b>New Demo Balance:</b> <b>₹{self.paper_state['balance_inr']:.2f} INR</b>\n"
+                            f"🏆 <b>Win Rate:</b> {self.paper_state['wins']}/{self.paper_state['total_trades']} ({(self.paper_state['wins']/self.paper_state['total_trades']*100):.1f}%)\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🔒 <i>Real account is 100% frozen. SMC Master Blueprint verified!</i>"
+                        )
+                        self.telegram.send_raw_message(tp_msg)
+                        logger.info(f"🎉 [DEMO TP HIT] {active_sym} Win: +₹{pnl_inr:.2f}")
+
+                    elif is_sl_hit:
+                        if self.active_trade.get("ctc_activated"):
+                            pnl_inr = 0.0
+                            pnl_usd = 0.0
+                            outcome = "BREAKEVEN"
+                            self.paper_state["breakevens"] = self.paper_state.get("breakevens", 0) + 1
+                            outcome_title = "🛡️ [DEMO BREAKEVEN EXIT - ZERO LOSS]"
+                        else:
+                            pnl_usd = contracts * abs(entry_p - sl_p) * c_val
+                            pnl_inr = -pnl_usd * 85.0
+                            outcome = "LOSS"
+                            self.paper_state["balance_inr"] = float(self.paper_state.get("balance_inr", 110.88)) + pnl_inr
+                            self.paper_state["losses"] = self.paper_state.get("losses", 0) + 1
+                            outcome_title = "🛑 [DEMO STOP-LOSS HIT - SAFE EXIT]"
+
+                        self.paper_state["total_trades"] = self.paper_state.get("total_trades", 0) + 1
+                        self.paper_state["trades"].append({
+                            "symbol": active_sym,
+                            "side": side_trade,
+                            "entry": entry_p,
+                            "exit": mark_p,
+                            "pnl_inr": pnl_inr,
+                            "outcome": outcome,
+                            "time": time.strftime('%Y-%m-%d %H:%M:%S'),
+                        })
+                        self.paper_state["active_trade"] = None
+                        save_paper_account(self.paper_state)
+                        self.active_trade = None
+
+                        sl_msg = (
+                            f"📊 <b>{outcome_title}</b> 📊\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🪙 <b>Pair:</b> <code>{active_sym}</code> ({side_trade.upper()})\n"
+                            f"📍 <b>Entry Price:</b> <code>${entry_p:.4f}</code>\n"
+                            f"🏁 <b>Exit Price:</b> <code>${mark_p:.4f}</code>\n"
+                            f"💰 <b>Demo PnL:</b> <b>{'+' if pnl_inr >= 0 else ''}₹{pnl_inr:.2f} INR</b>\n"
+                            f"📈 <b>Demo Balance:</b> <b>₹{self.paper_state['balance_inr']:.2f} INR</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🛡️ Capital preserved safely. Ready for next setup."
+                        )
+                        self.telegram.send_raw_message(sl_msg)
+                        logger.info(f"🛑 [DEMO EXIT] {active_sym} {outcome}: ₹{pnl_inr:.2f}")
+
+            # 🚨 LIVE REAL MONEY EXECUTION (Exchange checks)
+            else:
+                matching = [p for p in open_positions if p.get("product_symbol") == active_sym and int(p.get("size", 0)) != 0]
+                if matching:
+                    # 🛡️ ACTIVE TRADE COST-TO-COST (CTC) TRAILING CHECK
+                    try:
+                        prod_id = self.active_trade.get("product_id")
+                        pos_size = abs(int(matching[0].get("size", contracts)))
+
+                        if not ctc_done and prod_id and mark_p > 0:
                             trigger_ctc = False
                             if side_trade == "buy" and (tp_p > entry_p):
                                 target_dist = tp_p - entry_p
-                                # Hit >= 45% of distance towards Take-Profit
                                 if mark_p >= entry_p + (0.45 * target_dist):
                                     trigger_ctc = True
                             elif side_trade == "sell" and (entry_p > tp_p):
                                 target_dist = entry_p - tp_p
-                                # Hit >= 45% of distance towards Take-Profit
                                 if mark_p <= entry_p - (0.45 * target_dist):
                                     trigger_ctc = True
 
@@ -251,19 +463,16 @@ class DeltaMicroBot:
                                     f"🛡️ [CTC TRIGGERED] {active_sym} live price ${mark_p:.4f} hit 45%+ of target! "
                                     f"Moving SL from ${sl_p:.4f} to Cost-to-Cost Entry ${entry_p:.4f}..."
                                 )
-                                # 1. Cancel previous bracket orders
                                 try:
                                     self.client.request("DELETE", "/v2/orders/all", data={"product_id": prod_id})
                                     logger.info(f"Cleared previous bracket orders for {active_sym} (Product {prod_id})")
                                 except Exception as ce:
                                     logger.warning(f"Error cancelling old bracket orders: {ce}")
 
-                                # 2. Format price strings safely
                                 exit_side = "sell" if side_trade == "buy" else "buy"
                                 sl_price_str = f"{entry_p:.4f}" if entry_p >= 1.0 else f"{entry_p:.5f}"
                                 tp_price_str = f"{tp_p:.4f}" if tp_p >= 1.0 else f"{tp_p:.5f}"
 
-                                # 3. Re-place Stop-Loss at Cost-to-Cost (entry_p)
                                 sl_body = {
                                     "product_id": prod_id,
                                     "size": pos_size,
@@ -276,7 +485,6 @@ class DeltaMicroBot:
                                 sl_res = self.client.request("POST", "/v2/orders", data=sl_body)
                                 logger.info(f"New CTC Stop-Loss placed: {sl_res.get('success')}")
 
-                                # 4. Re-place Take-Profit limit order
                                 tp_body = {
                                     "product_id": prod_id,
                                     "size": pos_size,
@@ -288,11 +496,9 @@ class DeltaMicroBot:
                                 tp_res = self.client.request("POST", "/v2/orders", data=tp_body)
                                 logger.info(f"Re-placed Take-Profit order: {tp_res.get('success')}")
 
-                                # 5. Update local state
                                 self.active_trade["ctc_activated"] = True
                                 self.active_trade["sl_price"] = entry_p
 
-                                # 6. Send Telegram notification
                                 ctc_msg = (
                                     f"🛡️ <b>[COST-TO-COST ACTIVATED - 100% RISK-FREE]</b> 🛡️\n"
                                     f"━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -304,50 +510,40 @@ class DeltaMicroBot:
                                     f"✨ <i>Ab yeh trade 100% Risk-Free ho chuki hai! Wallet balance safe hai.</i>"
                                 )
                                 self.telegram.send_raw_message(ctc_msg)
-                except Exception as ctc_err:
-                    logger.error(f"Error during CTC trailing check: {ctc_err}")
-            else:
-                logger.info(f"Position on {active_sym} has CLOSED! Sending Telegram Exit Alert...")
-                try:
-                    entry_p = self.active_trade["entry_price"]
-                    sl_p = self.active_trade["sl_price"]
-                    tp_p = self.active_trade["tp_price"]
-                    side_trade = self.active_trade["side"]
-                    
-                    # Fetch live ticker for last price
-                    ticker = self.client.get_ticker(active_sym)
-                    exit_price = float(ticker.get("mark_price", entry_p))
-                    
-                    pnl_usd = (exit_price - entry_p) if side_trade == "buy" else (entry_p - exit_price)
-                    pnl_inr = pnl_usd * 85.0
-                    is_win = pnl_inr >= 0
-                    outcome_title = "🎉 TAKE-PROFIT HIT (PROFIT BOOKED!) 🎉" if is_win else "🛑 STOP-LOSS HIT (LOSS CUT SAFELY)"
-                    
-                    exit_msg = (
-                        f"📊 <b>[{outcome_title}]</b> 📊\n"
-                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🪙 <b>Pair:</b> <code>{active_sym}</code>\n"
-                        f"📍 <b>Entry Price:</b> <code>${entry_p:.4f}</code>\n"
-                        f"🏁 <b>Exit Price:</b> <code>${exit_price:.4f}</code>\n"
-                        f"💡 <b>Close Reason:</b> {'Take-Profit target level reached' if is_win else 'Stop-Loss protected capital from drawdown'}\n"
-                        f"💰 <b>Net PnL Added:</b> <b>{'+' if is_win else ''}₹{pnl_inr:.2f} INR</b> ({'+' if is_win else ''}${pnl_usd:.4f} USD)\n"
-                        f"📈 <b>New Delta Wallet Balance:</b> <b>₹{inr_bal:.2f} INR</b>\n"
-                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🔒 Capital strictly protected. Ready for next A++ setup."
-                    )
-                    self.telegram.send_raw_message(exit_msg)
+                    except Exception as ctc_err:
+                        logger.error(f"Error during CTC trailing check: {ctc_err}")
+                else:
+                    logger.info(f"Position on {active_sym} has CLOSED! Sending Telegram Exit Alert...")
+                    try:
+                        pnl_usd = (mark_p - entry_p) if side_trade == "buy" else (entry_p - mark_p)
+                        pnl_inr = pnl_usd * 85.0
+                        is_win = pnl_inr >= 0
+                        outcome_title = "🎉 TAKE-PROFIT HIT (PROFIT BOOKED!) 🎉" if is_win else "🛑 STOP-LOSS HIT (LOSS CUT SAFELY)"
 
-                    # Cancel remaining open/bracket orders for this product to prevent orphan orders
-                    prod_id = self.active_trade.get("product_id")
-                    if prod_id:
-                        try:
-                            self.client.request("DELETE", "/v2/orders/all", data={"product_id": prod_id})
-                            logger.info(f"Cleaned up remaining bracket orders for product {prod_id}")
-                        except Exception as ce:
-                            logger.warning(f"Order cleanup warning: {ce}")
-                except Exception as e:
-                    logger.error(f"Error sending exit alert: {e}")
-                self.active_trade = None
+                        exit_msg = (
+                            f"📊 <b>[{outcome_title}]</b> 📊\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🪙 <b>Pair:</b> <code>{active_sym}</code>\n"
+                            f"📍 <b>Entry Price:</b> <code>${entry_p:.4f}</code>\n"
+                            f"🏁 <b>Exit Price:</b> <code>${mark_p:.4f}</code>\n"
+                            f"💡 <b>Close Reason:</b> {'Take-Profit target reached' if is_win else 'Stop-Loss protected capital'}\n"
+                            f"💰 <b>Net PnL Added:</b> <b>{'+' if is_win else ''}₹{pnl_inr:.2f} INR</b> ({'+' if is_win else ''}${pnl_usd:.4f} USD)\n"
+                            f"📈 <b>New Delta Wallet Balance:</b> <b>₹{inr_bal:.2f} INR</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"🔒 Capital strictly protected. Ready for next A++ setup."
+                        )
+                        self.telegram.send_raw_message(exit_msg)
+
+                        prod_id = self.active_trade.get("product_id")
+                        if prod_id:
+                            try:
+                                self.client.request("DELETE", "/v2/orders/all", data={"product_id": prod_id})
+                                logger.info(f"Cleaned up remaining bracket orders for product {prod_id}")
+                            except Exception as ce:
+                                logger.warning(f"Order cleanup warning: {ce}")
+                    except Exception as e:
+                        logger.error(f"Error sending exit alert: {e}")
+                    self.active_trade = None
         has_open_pos = len(open_positions) > 0
         inr_bal = self.get_wallet_inr()
 
@@ -467,16 +663,30 @@ class DeltaMicroBot:
                 table.add_row(delta_sym, "ERR", "-", f"[red]{str(e)[:25]}[/]", "-", "-")
 
         console.print(table)
-        active_info = f" | [bold magenta]Active Trade:[/] {self.active_trade['symbol']} ({self.active_trade['side'].upper()}{' - 🛡️ CTC 100% RISK-FREE' if self.active_trade.get('ctc_activated') else ''})" if self.active_trade else ""
-        console.print(f"[bold cyan]Delta Wallet Balance:[/] Rs. {inr_bal:.2f} | [bold green]Open Positions:[/] {len(open_positions)} (Cap: 1) | [bold yellow]Auto-Trade:[/] {'ACTIVE' if self.auto_trade else 'OFF'}{active_info}")
+        active_info = f" | [bold magenta]Active Trade:[/] {self.active_trade['symbol']} ({self.active_trade['side'].upper()}{' - [CTC RISK-FREE]' if self.active_trade.get('ctc_activated') else ''})" if self.active_trade else ""
+        if self.paper_mode:
+            total_t = self.paper_state.get("total_trades", 0)
+            wins_t = self.paper_state.get("wins", 0)
+            wr_str = f" | [bold green]Win Rate:[/] {wins_t}/{total_t} ({(wins_t/total_t*100):.1f}%)" if total_t > 0 else ""
+            console.print(f"[bold magenta][DEMO] Virtual Balance:[/] Rs. {inr_bal:.2f} (Real Wallet Safe!){wr_str} | [bold green]Open Positions:[/] {len(open_positions)} (Cap: 1) | [bold yellow]Auto-Trade:[/] {'ACTIVE' if self.auto_trade else 'OFF'}{active_info}")
+        else:
+            console.print(f"[bold cyan]Delta Real Balance:[/] Rs. {inr_bal:.2f} | [bold green]Open Positions:[/] {len(open_positions)} (Cap: 1) | [bold yellow]Auto-Trade:[/] {'ACTIVE' if self.auto_trade else 'OFF'}{active_info}")
 
     def run(self, interval: int = 60):
-        console.print(Panel.fit(
-            f"[bold green]BotX 24/7 Delta Exchange India SMC Master Blueprint Engine Running[/]\n"
-            f"[cyan]Scanning 11 Micro-Pairs | 50 EMA Macro Filter + SSMC Shadow Sweep + 50% Fib Rule[/]\n"
-            f"[yellow]Risk Guard: Max Margin Rs {self.max_margin_inr:.2f} | Max Risk Rs 3-4 | Auto Cost-to-Cost (CTC) Trailing[/]",
-            border_style="cyan"
-        ))
+        if self.paper_mode:
+            banner_text = (
+                f"[bold magenta][DEMO / PAPER TRADING MODE] BotX 24/7 SMC Master Blueprint Engine[/]\n"
+                f"[green]Real Delta Wallet is 100% FROZEN & SAFE! Zero real money at risk.[/]\n"
+                f"[cyan]Scanning 11 Micro-Pairs on Live Delta India Data | 50 EMA Macro + SSMC Sweep + CTC Trailing[/]\n"
+                f"[yellow]Risk Guard: Virtual Margin Rs {self.max_margin_inr:.2f} | Strict 1:1 Quick RR | Auto Breakeven Trailing[/]"
+            )
+        else:
+            banner_text = (
+                f"[bold red][LIVE REAL MONEY] BotX 24/7 Delta Exchange India SMC Engine[/]\n"
+                f"[cyan]Scanning 11 Micro-Pairs | 50 EMA Macro Filter + SSMC Shadow Sweep + 50% Fib Rule[/]\n"
+                f"[yellow]Risk Guard: Max Margin Rs {self.max_margin_inr:.2f} | Max Risk Rs 3-4 | Auto Cost-to-Cost (CTC) Trailing[/]"
+            )
+        console.print(Panel.fit(banner_text, border_style="magenta" if self.paper_mode else "red"))
 
         cycle = 1
         while True:
@@ -492,7 +702,9 @@ if __name__ == "__main__":
     parser.add_argument("--interval", type=int, default=60, help="Scan interval in seconds")
     parser.add_argument("--auto-trade", action="store_true", default=True, help="Auto execute signals")
     parser.add_argument("--max-margin", type=float, default=50.0, help="Max INR margin per trade (hard cap Rs 50)")
+    parser.add_argument("--paper", action="store_true", default=True, help="Run in Demo / Paper Trading mode (Default: True)")
+    parser.add_argument("--live", dest="paper", action="store_false", help="Run with Real Delta Exchange money")
     args = parser.parse_args()
 
-    bot = DeltaMicroBot(auto_trade=args.auto_trade, max_margin_inr=args.max_margin)
+    bot = DeltaMicroBot(auto_trade=args.auto_trade, max_margin_inr=args.max_margin, paper_mode=args.paper)
     bot.run(interval=args.interval)
