@@ -48,6 +48,8 @@ data/historical/
 # Unit test / coverage
 .pytest_cache/
 .coverage
+
+*.png
 htmlcov/
 
 # Editor configurations

@@ -155,6 +155,7 @@ class DeltaMicroBot:
                 "sl_price": sl_price,
                 "tp_price": tp_price,
                 "entry_time": time.time(),
+                "ctc_activated": False,
             }
 
             try:
@@ -167,8 +168,8 @@ class DeltaMicroBot:
                     f"📦 <b>Size:</b> <code>{contracts} Contract(s)</code> (~${notional_usd:.2f} Notional)\n"
                     f"💰 <b>Margin Used:</b> <b>~₹{est_margin_inr:.2f} INR</b> (Safe Micro Mode)\n"
                     f"📍 <b>Entry Price:</b> <code>${entry_price:.4f}</code>\n"
-                    f"🛑 <b>Strict SL:</b> <code>${sl_price:.4f}</code> (Max Risk: <b>-₹{(contracts * abs(entry_price - sl_price) * 85.0):.2f} INR</b>)\n"
-                    f"🎯 <b>Target TP:</b> <code>${tp_price:.4f}</code> (Target Gain: <b>+₹{(contracts * abs(tp_price - entry_price) * 85.0):.2f} INR</b>)\n"
+                    f"🛑 <b>Strict SL:</b> <code>${sl_price:.4f}</code> (Max Risk: <b>-₹{(contracts * abs(entry_price - sl_price) * c_val * 85.0):.2f} INR</b>)\n"
+                    f"🎯 <b>Target TP:</b> <code>${tp_price:.4f}</code> (Target Gain: <b>+₹{(contracts * abs(tp_price - entry_price) * c_val * 85.0):.2f} INR</b>)\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"🛡️ <b>Wallet Safety:</b> ₹{inr_balance:.2f} mein se sirf ₹{est_margin_inr:.2f} use hua.\n"
                     f"💼 <b>Safe Buffer Remaining:</b> <b>₹{inr_balance - est_margin_inr:.2f} INR</b> untouched!"
@@ -182,13 +183,13 @@ class DeltaMicroBot:
             return False
 
     def scan_cycle(self, cycle_num: int):
-        table = Table(title=f"Delta India Swing Scanner Cycle #{cycle_num} - {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        table = Table(title=f"Delta India SMC Master Blueprint Scanner Cycle #{cycle_num} - {time.strftime('%Y-%m-%d %H:%M:%S')}")
         table.add_column("Pair", style="cyan", justify="left")
         table.add_column("Price", style="white", justify="right")
-        table.add_column("1H Bias", justify="center")
-        table.add_column("15M Swing Retest", justify="left")
-        table.add_column("15M Liquidity Sweep", justify="left")
-        table.add_column("4H POC Pullback (30M)", justify="left")
+        table.add_column("50 EMA Macro", justify="center")
+        table.add_column("Fib 50% Zone", justify="center")
+        table.add_column("Master Blueprint (SMC)", justify="left")
+        table.add_column("4H POC Pullback", justify="left")
 
         open_positions = self.check_open_positions()
         has_open_pos = len(open_positions) > 0
@@ -208,15 +209,104 @@ class DeltaMicroBot:
                         "sl_price": float(p.get("entry_price", 0)) * (0.99 if p_sz > 0 else 1.01),
                         "tp_price": float(p.get("entry_price", 0)) * (1.02 if p_sz > 0 else 0.98),
                         "entry_time": time.time(),
+                        "ctc_activated": False,
                     }
                     logger.info(f"Rehydrated active trade from exchange: {self.active_trade['symbol']} ({p_sz} contracts @ ${self.active_trade['entry_price']:.4f})")
                     break
 
-        # Check if active trade has closed and send Telegram Exit Alert
+        # Check active trade for Cost-to-Cost (CTC) Trailing & Exit Alerts
         if self.active_trade:
             active_sym = self.active_trade["symbol"]
             matching = [p for p in open_positions if p.get("product_symbol") == active_sym and int(p.get("size", 0)) != 0]
-            if not matching:
+            if matching:
+                # 🛡️ ACTIVE TRADE COST-TO-COST (CTC) TRAILING CHECK
+                try:
+                    entry_p = float(self.active_trade["entry_price"])
+                    sl_p = float(self.active_trade["sl_price"])
+                    tp_p = float(self.active_trade["tp_price"])
+                    side_trade = self.active_trade["side"]
+                    ctc_done = self.active_trade.get("ctc_activated", False)
+                    prod_id = self.active_trade.get("product_id")
+                    pos_size = abs(int(matching[0].get("size", self.active_trade.get("contracts", 1))))
+
+                    if not ctc_done and prod_id:
+                        ticker = self.client.get_ticker(active_sym)
+                        mark_p = float(ticker.get("mark_price", 0)) if ticker else 0.0
+
+                        if mark_p > 0:
+                            trigger_ctc = False
+                            if side_trade == "buy" and (tp_p > entry_p):
+                                target_dist = tp_p - entry_p
+                                # Hit >= 45% of distance towards Take-Profit
+                                if mark_p >= entry_p + (0.45 * target_dist):
+                                    trigger_ctc = True
+                            elif side_trade == "sell" and (entry_p > tp_p):
+                                target_dist = entry_p - tp_p
+                                # Hit >= 45% of distance towards Take-Profit
+                                if mark_p <= entry_p - (0.45 * target_dist):
+                                    trigger_ctc = True
+
+                            if trigger_ctc:
+                                logger.info(
+                                    f"🛡️ [CTC TRIGGERED] {active_sym} live price ${mark_p:.4f} hit 45%+ of target! "
+                                    f"Moving SL from ${sl_p:.4f} to Cost-to-Cost Entry ${entry_p:.4f}..."
+                                )
+                                # 1. Cancel previous bracket orders
+                                try:
+                                    self.client.request("DELETE", "/v2/orders/all", data={"product_id": prod_id})
+                                    logger.info(f"Cleared previous bracket orders for {active_sym} (Product {prod_id})")
+                                except Exception as ce:
+                                    logger.warning(f"Error cancelling old bracket orders: {ce}")
+
+                                # 2. Format price strings safely
+                                exit_side = "sell" if side_trade == "buy" else "buy"
+                                sl_price_str = f"{entry_p:.4f}" if entry_p >= 1.0 else f"{entry_p:.5f}"
+                                tp_price_str = f"{tp_p:.4f}" if tp_p >= 1.0 else f"{tp_p:.5f}"
+
+                                # 3. Re-place Stop-Loss at Cost-to-Cost (entry_p)
+                                sl_body = {
+                                    "product_id": prod_id,
+                                    "size": pos_size,
+                                    "side": exit_side,
+                                    "order_type": "market_order",
+                                    "stop_order_type": "stop_loss_order",
+                                    "stop_price": sl_price_str,
+                                    "reduce_only": True,
+                                }
+                                sl_res = self.client.request("POST", "/v2/orders", data=sl_body)
+                                logger.info(f"New CTC Stop-Loss placed: {sl_res.get('success')}")
+
+                                # 4. Re-place Take-Profit limit order
+                                tp_body = {
+                                    "product_id": prod_id,
+                                    "size": pos_size,
+                                    "side": exit_side,
+                                    "order_type": "limit_order",
+                                    "limit_price": tp_price_str,
+                                    "reduce_only": True,
+                                }
+                                tp_res = self.client.request("POST", "/v2/orders", data=tp_body)
+                                logger.info(f"Re-placed Take-Profit order: {tp_res.get('success')}")
+
+                                # 5. Update local state
+                                self.active_trade["ctc_activated"] = True
+                                self.active_trade["sl_price"] = entry_p
+
+                                # 6. Send Telegram notification
+                                ctc_msg = (
+                                    f"🛡️ <b>[COST-TO-COST ACTIVATED - 100% RISK-FREE]</b> 🛡️\n"
+                                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                                    f"🪙 <b>Pair:</b> <code>{active_sym}</code>\n"
+                                    f"📈 <b>Live Price:</b> <code>${mark_p:.4f}</code> (Reached 45%+ of target!)\n"
+                                    f"🛑 <b>Stop-Loss Shifted:</b> <code>${sl_p:.4f}</code> ➡️ <b>Entry ${entry_p:.4f}</b>\n"
+                                    f"🎯 <b>Target TP:</b> <code>${tp_p:.4f}</code>\n"
+                                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                                    f"✨ <i>Ab yeh trade 100% Risk-Free ho chuki hai! Wallet balance safe hai.</i>"
+                                )
+                                self.telegram.send_raw_message(ctc_msg)
+                except Exception as ctc_err:
+                    logger.error(f"Error during CTC trailing check: {ctc_err}")
+            else:
                 logger.info(f"Position on {active_sym} has CLOSED! Sending Telegram Exit Alert...")
                 try:
                     entry_p = self.active_trade["entry_price"]
@@ -274,9 +364,7 @@ class DeltaMicroBot:
 
                 curr_p = c_15m[-1].close
 
-                # Evaluate Video Strategy on 15M swing timeframe
-                res_v = self.video_strat.evaluate(c_15m, c_1h, symbol=sym_feed, timeframe="15m")
-                # Evaluate Sweep Strategy on 15M swing timeframe with Enhanced Engine (Volume + 1:1 RR + Noise-buffered SL)
+                # Evaluate Sweep Strategy on 15M swing timeframe with SMC Master Blueprint Engine
                 res_s = self.enhanced_sweep.evaluate(
                     c_15m,
                     c_1h,
@@ -292,11 +380,26 @@ class DeltaMicroBot:
                 c_30m = self.feed.fetch_recent_candles(sym_feed, timeframe="30m", limit=40)
                 res_poc = self.poc_strat.evaluate(c_30m, c_4h, symbol=sym_feed)
 
-                bias_style = "green" if res_v.htf_bias == "BULLISH" else ("red" if res_v.htf_bias == "BEARISH" else "yellow")
-                bias_text = f"[{bias_style}]{res_v.htf_bias}[/{bias_style}]"
+                # 50 EMA Macro Trend Display
+                macro_style = "bold green" if res_s.htf_bias == "BULLISH" else ("bold red" if res_s.htf_bias == "BEARISH" else "yellow")
+                macro_cell = f"[{macro_style}]{res_s.htf_bias} (${res_s.htf_50_ema:.4f})[/{macro_style}]"
 
-                v_cell = f"[bold green]SIGNAL: {res_v.signal.action}[/]" if res_v.has_valid_setup else "[dim]Waiting for 15M BOS[/dim]"
-                s_cell = f"[bold green]SIGNAL: {res_s.signal.action} (1:1)[/]" if res_s.has_valid_setup else "[dim]Waiting for 15M Sweep[/dim]"
+                # Fib 50% Zone Display
+                if res_s.fib_equilibrium:
+                    if curr_p <= res_s.fib_equilibrium:
+                        fib_cell = f"[green]Discount (<= ${res_s.fib_equilibrium:.4f})[/]"
+                    else:
+                        fib_cell = f"[red]Premium (>= ${res_s.fib_equilibrium:.4f})[/]"
+                else:
+                    fib_cell = "[dim]Equilibrium[/dim]"
+
+                # SMC Master Blueprint Setup Cell
+                if res_s.has_valid_setup and res_s.signal:
+                    s_cell = f"[bold green]SIGNAL: {res_s.signal.action} (1:1)[/]"
+                elif res_s.wait_reasons:
+                    s_cell = f"[dim]{res_s.wait_reasons[0]}[/dim]"
+                else:
+                    s_cell = "[dim]Scanning[/dim]"
 
                 if res_poc.has_valid_setup and res_poc.signal:
                     poc_cell = f"[bold green]SIGNAL: {res_poc.signal.action} (POC ${res_poc.poc_price:.4f})[/]"
@@ -307,7 +410,7 @@ class DeltaMicroBot:
                 else:
                     poc_cell = "[dim]Scanning[/dim]"
 
-                table.add_row(delta_sym, f"${curr_p:.4f}", bias_text, v_cell, s_cell, poc_cell)
+                table.add_row(delta_sym, f"${curr_p:.4f}", macro_cell, fib_cell, s_cell, poc_cell)
 
                 # Check if we should execute a trade (1 position only, 10 min cooldown - strict)
                 time_since_trade = time.time() - self.last_trade_time
@@ -317,11 +420,11 @@ class DeltaMicroBot:
                     signal_reason = ""
                     rec_contracts = None
 
-                    # User Mandate: EXCLUSIVELY execute 15M Institutional Liquidity Sweep Strategy (1:1 Quick RR)
+                    # User Mandate: EXCLUSIVELY execute SMC Master Blueprint Strategy (1:1 Quick RR)
                     if res_s.has_valid_setup and res_s.signal:
                         chosen_signal = res_s.signal
-                        signal_label = f"15M Liquidity Sweep 1:1 (RVOL {chosen_signal.relative_volume:.1f}x)"
-                        signal_reason = f"A+ 15M Sweep of ${chosen_signal.swept_level} with 1:1 RR"
+                        signal_label = f"SMC Master Blueprint ({chosen_signal.action} 1:1 | RVOL {chosen_signal.relative_volume:.1f}x)"
+                        signal_reason = f"{chosen_signal.setup_name} at ${chosen_signal.swept_level} ({chosen_signal.confirmation_type}). {chosen_signal.psychology_note}"
                         rec_contracts = chosen_signal.recommended_contracts
 
                     if chosen_signal:
@@ -364,13 +467,14 @@ class DeltaMicroBot:
                 table.add_row(delta_sym, "ERR", "-", f"[red]{str(e)[:25]}[/]", "-", "-")
 
         console.print(table)
-        console.print(f"[bold cyan]Delta Wallet Balance:[/] Rs. {inr_bal:.2f} | [bold green]Open Positions:[/] {len(open_positions)} (Cap: 1) | [bold yellow]Auto-Trade:[/] {'ACTIVE' if self.auto_trade else 'OFF'}")
+        active_info = f" | [bold magenta]Active Trade:[/] {self.active_trade['symbol']} ({self.active_trade['side'].upper()}{' - 🛡️ CTC 100% RISK-FREE' if self.active_trade.get('ctc_activated') else ''})" if self.active_trade else ""
+        console.print(f"[bold cyan]Delta Wallet Balance:[/] Rs. {inr_bal:.2f} | [bold green]Open Positions:[/] {len(open_positions)} (Cap: 1) | [bold yellow]Auto-Trade:[/] {'ACTIVE' if self.auto_trade else 'OFF'}{active_info}")
 
     def run(self, interval: int = 60):
         console.print(Panel.fit(
-            f"[bold green]BotX 24/7 Delta Exchange India Micro Scanner Running[/]\n"
-            f"[cyan]Scanning 10 Pairs | Dual Strategy Engine (Video Retest + Liquidity Sweep)[/]\n"
-            f"[yellow]Risk Guard: Max Margin Rs {self.max_margin_inr:.2f} | Max Risk Rs 3-5 per trade[/]",
+            f"[bold green]BotX 24/7 Delta Exchange India SMC Master Blueprint Engine Running[/]\n"
+            f"[cyan]Scanning 11 Micro-Pairs | 50 EMA Macro Filter + SSMC Shadow Sweep + 50% Fib Rule[/]\n"
+            f"[yellow]Risk Guard: Max Margin Rs {self.max_margin_inr:.2f} | Max Risk Rs 3-4 | Auto Cost-to-Cost (CTC) Trailing[/]",
             border_style="cyan"
         ))
 
