@@ -57,7 +57,7 @@ def load_paper_account() -> Dict[str, Any]:
                 return json.load(f)
         except Exception:
             pass
-    return {
+    init_data = {
         "balance_inr": 110.88,
         "initial_balance_inr": 110.88,
         "trades": [],
@@ -67,6 +67,8 @@ def load_paper_account() -> Dict[str, Any]:
         "breakevens": 0,
         "active_trade": None,
     }
+    save_paper_account(init_data)
+    return init_data
 
 def save_paper_account(data: Dict[str, Any]):
     os.makedirs("data", exist_ok=True)
